@@ -1,8 +1,7 @@
 import dotenv from 'dotenv';
-import path from 'path';
 
-// Load .env from project root
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+// Load .env file (only needed in development)
+dotenv.config();
 
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),

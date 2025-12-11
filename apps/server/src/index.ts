@@ -7,6 +7,11 @@ import { handleConnection, setupHeartbeat } from './websocket/handler.js';
 import { getRoomCount, getActiveRoomIds } from './websocket/rooms.js';
 import type { ExtendedWebSocket } from './websocket/types.js';
 
+// Log startup
+console.log('Starting VoiceChurch server...');
+console.log('PORT:', process.env.PORT);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+
 // Validate config on startup
 validateConfig();
 
