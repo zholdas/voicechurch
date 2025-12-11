@@ -31,7 +31,7 @@ export function deleteRoom(roomId: string): boolean {
   if (room) {
     // Close Deepgram connection if exists
     if (room.deepgramConnection) {
-      room.deepgramConnection.close();
+      (room.deepgramConnection as { close: () => void }).close();
     }
     rooms.delete(roomId);
     console.log(`Room deleted: ${roomId}`);
@@ -91,7 +91,7 @@ export function removeClient(ws: ExtendedWebSocket): void {
 
     // Close Deepgram connection
     if (room.deepgramConnection) {
-      room.deepgramConnection.close();
+      (room.deepgramConnection as { close: () => void }).close();
       room.deepgramConnection = null;
     }
 
@@ -151,14 +151,14 @@ export function notifyListenerCount(roomId: string): void {
   }
 }
 
-export function setDeepgramConnection(roomId: string, connection: WebSocket | null): void {
+export function setDeepgramConnection(roomId: string, connection: unknown): void {
   const room = rooms.get(roomId);
   if (room) {
     room.deepgramConnection = connection;
   }
 }
 
-export function getDeepgramConnection(roomId: string): WebSocket | null {
+export function getDeepgramConnection(roomId: string): unknown {
   const room = rooms.get(roomId);
   return room?.deepgramConnection || null;
 }

@@ -23,7 +23,7 @@ export interface Room {
   createdAt: Date;
   broadcaster: WebSocket | null;
   listeners: Set<WebSocket>;
-  deepgramConnection: WebSocket | null;
+  deepgramConnection: unknown;
   isActive: boolean;
 }
 
