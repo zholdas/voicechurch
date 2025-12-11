@@ -5,8 +5,6 @@
     "buildCommand": "npm install --legacy-peer-deps && npm run build"
   },
   "deploy": {
-    "startCommand": "npm start",
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 60
+    "startCommand": "npm start"
   }
 }
