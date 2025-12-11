@@ -1,0 +1,162 @@
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { useTranscript } from '../hooks/useTranscript';
+import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
+import ConnectionStatus from '../components/ConnectionStatus';
+import TranscriptDisplay from '../components/TranscriptDisplay';
+import FontControls from '../components/FontControls';
+import type { ServerMessage } from '../lib/types';
+
+export default function Listen() {
+  const { roomId } = useParams<{ roomId: string }>();
+  const [broadcastActive, setBroadcastActive] = useState(false);
+  const [listenerCount, setListenerCount] = useState(0);
+  const [fontSize, setFontSize] = useState(20);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const { entries, addTranscript, clearTranscript } = useTranscript();
+  const { isEnabled: ttsEnabled, toggle: toggleTts, speak } = useSpeechSynthesis();
+
+  const handleMessage = useCallback(
+    (message: ServerMessage) => {
+      switch (message.type) {
+        case 'joined':
+          setListenerCount(message.listenerCount);
+          break;
+        case 'broadcast_started':
+          setBroadcastActive(true);
+          clearTranscript();
+          break;
+        case 'broadcast_ended':
+          setBroadcastActive(false);
+          break;
+        case 'transcript':
+          addTranscript(
+            message.spanish,
+            message.english,
+            message.isFinal,
+            message.timestamp
+          );
+          // Speak final transcripts
+          if (message.isFinal && ttsEnabled) {
+            speak(message.english);
+          }
+          break;
+        case 'listener_count':
+          setListenerCount(message.count);
+          break;
+        case 'error':
+          setErrorMessage(message.message);
+          break;
+      }
+    },
+    [addTranscript, clearTranscript, speak, ttsEnabled]
+  );
+
+  const { status, connect, send, isConnected } = useWebSocket({
+    onMessage: handleMessage,
+  });
+
+  // Connect on mount
+  useEffect(() => {
+    connect();
+  }, [connect]);
+
+  // Join room when connected
+  useEffect(() => {
+    if (isConnected && roomId) {
+      send({ type: 'join_room', roomId, role: 'listener' });
+    }
+  }, [isConnected, roomId, send]);
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex flex-col">
+      {/* Header */}
+      <header className="bg-white shadow-sm flex-shrink-0">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <Link to="/" className="text-lg font-bold text-blue-600">
+            VoiceChurch
+          </Link>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500">
+              {listenerCount} listener{listenerCount !== 1 ? 's' : ''}
+            </span>
+            <ConnectionStatus status={status} />
+          </div>
+        </div>
+      </header>
+
+      {/* Error display */}
+      {errorMessage && (
+        <div className="bg-red-50 border-b border-red-200 text-red-700 px-4 py-3 text-center">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* Broadcast status */}
+      {!broadcastActive && isConnected && (
+        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-800 px-4 py-3 text-center">
+          Waiting for broadcast to start...
+        </div>
+      )}
+
+      {broadcastActive && (
+        <div className="bg-green-50 border-b border-green-200 text-green-800 px-4 py-3 text-center flex items-center justify-center gap-2">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+          </span>
+          Live broadcast in progress
+        </div>
+      )}
+
+      {/* Main content */}
+      <main className="flex-1 flex flex-col max-w-4xl mx-auto w-full px-4 py-4">
+        <TranscriptDisplay entries={entries} fontSize={fontSize} />
+      </main>
+
+      {/* Controls */}
+      <footer className="bg-white border-t shadow-lg flex-shrink-0">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <FontControls fontSize={fontSize} onFontSizeChange={setFontSize} />
+
+          <button
+            onClick={toggleTts}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              ttsEnabled
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              {ttsEnabled ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                />
+              )}
+            </svg>
+            <span className="text-sm font-medium">
+              {ttsEnabled ? 'Audio On' : 'Audio Off'}
+            </span>
+          </button>
+        </div>
+      </footer>
+    </div>
+  );
+}

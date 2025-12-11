@@ -1,0 +1,20 @@
+{
+  "name": "voicechurch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time speech translation service for churches",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "npm run dev --workspace=apps/server",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build": "npm run build --workspaces",
+    "start": "npm run start --workspace=apps/server"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}

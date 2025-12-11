@@ -1,0 +1,192 @@
+import type { WebSocket } from 'ws';
+import type { ClientMessage, ServerMessage, ExtendedWebSocket } from './types.js';
+import {
+  createRoom,
+  getRoom,
+  addBroadcaster,
+  addListener,
+  removeClient,
+} from './rooms.js';
+import {
+  createDeepgramConnection,
+  sendAudioToDeepgram,
+  closeDeepgramConnection,
+} from '../services/deepgram.js';
+
+function send(ws: WebSocket, message: ServerMessage): void {
+  if (ws.readyState === ws.OPEN) {
+    ws.send(JSON.stringify(message));
+  }
+}
+
+function sendError(ws: WebSocket, code: string, message: string): void {
+  send(ws, { type: 'error', code, message });
+}
+
+export function handleConnection(ws: ExtendedWebSocket): void {
+  console.log('New WebSocket connection');
+
+  ws.isAlive = true;
+
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
+  ws.on('message', (data, isBinary) => {
+    // Handle binary audio data
+    if (isBinary) {
+      handleAudioData(ws, data as Buffer);
+      return;
+    }
+
+    // Handle JSON messages
+    try {
+      const message = JSON.parse(data.toString()) as ClientMessage;
+      handleMessage(ws, message);
+    } catch (error) {
+      console.error('Failed to parse message:', error);
+      sendError(ws, 'INVALID_MESSAGE', 'Failed to parse message');
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+    handleDisconnect(ws);
+  });
+
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error);
+  });
+}
+
+function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
+  switch (message.type) {
+    case 'create_room':
+      handleCreateRoom(ws);
+      break;
+
+    case 'join_room':
+      handleJoinRoom(ws, message.roomId, message.role);
+      break;
+
+    case 'end_broadcast':
+      handleEndBroadcast(ws);
+      break;
+
+    case 'ping':
+      send(ws, { type: 'pong' });
+      break;
+
+    default:
+      sendError(ws, 'UNKNOWN_MESSAGE', 'Unknown message type');
+  }
+}
+
+function handleCreateRoom(ws: ExtendedWebSocket): void {
+  const room = createRoom();
+
+  // Automatically join as broadcaster
+  addBroadcaster(room.id, ws);
+
+  // Don't create Deepgram connection yet - wait for audio
+
+  send(ws, {
+    type: 'room_created',
+    roomId: room.id,
+  });
+
+  send(ws, {
+    type: 'joined',
+    roomId: room.id,
+    role: 'broadcaster',
+    listenerCount: 0,
+  });
+}
+
+function handleJoinRoom(
+  ws: ExtendedWebSocket,
+  roomId: string,
+  role: 'broadcaster' | 'listener'
+): void {
+  const room = getRoom(roomId);
+
+  if (!room) {
+    sendError(ws, 'ROOM_NOT_FOUND', 'Room does not exist');
+    return;
+  }
+
+  if (role === 'broadcaster') {
+    if (room.broadcaster) {
+      sendError(ws, 'BROADCASTER_EXISTS', 'Room already has a broadcaster');
+      return;
+    }
+
+    addBroadcaster(roomId, ws);
+    // Don't create Deepgram connection yet - wait for audio
+  } else {
+    addListener(roomId, ws);
+  }
+
+  send(ws, {
+    type: 'joined',
+    roomId,
+    role,
+    listenerCount: room.listeners.size,
+  });
+
+  // Notify if broadcast is already active
+  if (role === 'listener' && room.isActive) {
+    send(ws, { type: 'broadcast_started' });
+  }
+}
+
+function handleEndBroadcast(ws: ExtendedWebSocket): void {
+  if (ws.role !== 'broadcaster' || !ws.roomId) {
+    sendError(ws, 'NOT_BROADCASTER', 'Only broadcaster can end broadcast');
+    return;
+  }
+
+  closeDeepgramConnection(ws.roomId);
+  removeClient(ws);
+}
+
+function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
+  if (ws.role !== 'broadcaster' || !ws.roomId) {
+    return;
+  }
+
+  const room = getRoom(ws.roomId);
+  if (!room) return;
+
+  // Create Deepgram connection lazily on first audio chunk
+  if (!room.deepgramConnection) {
+    console.log(`Starting Deepgram for room: ${ws.roomId}`);
+    createDeepgramConnection(ws.roomId);
+  }
+
+  sendAudioToDeepgram(ws.roomId, data);
+}
+
+function handleDisconnect(ws: ExtendedWebSocket): void {
+  if (ws.roomId) {
+    if (ws.role === 'broadcaster') {
+      closeDeepgramConnection(ws.roomId);
+    }
+    removeClient(ws);
+  }
+}
+
+// Heartbeat to detect dead connections
+export function setupHeartbeat(wss: { clients: Set<ExtendedWebSocket> }): NodeJS.Timeout {
+  return setInterval(() => {
+    wss.clients.forEach((ws) => {
+      if (ws.isAlive === false) {
+        handleDisconnect(ws);
+        return ws.terminate();
+      }
+
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+}
