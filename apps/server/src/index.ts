@@ -67,8 +67,8 @@ process.on('SIGTERM', () => {
   });
 });
 
-// Start server
-server.listen(config.port, () => {
+// Start server - listen on 0.0.0.0 for container environments
+server.listen(config.port, '0.0.0.0', () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║                    VoiceChurch Server                     ║
