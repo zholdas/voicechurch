@@ -1,11 +1,16 @@
-import { nanoid } from 'nanoid';
+import crypto from 'crypto';
 import type { Room, ExtendedWebSocket, ServerMessage } from './types.js';
 
 // In-memory room storage
 const rooms = new Map<string, Room>();
 
+// Generate short unique ID
+function generateRoomId(): string {
+  return crypto.randomUUID().slice(0, 8);
+}
+
 export function createRoom(): Room {
-  const roomId = nanoid(8); // e.g., "V1StGXR8"
+  const roomId = generateRoomId();
 
   const room: Room = {
     id: roomId,
