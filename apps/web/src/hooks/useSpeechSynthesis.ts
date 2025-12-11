@@ -85,6 +85,12 @@ export function useSpeechSynthesis() {
       queueRef.current = [];
       speakingRef.current = false;
       setIsSpeaking(false);
+    } else {
+      // iOS Safari requires user gesture for first speechSynthesis call
+      // This "unlocks" the audio context for subsequent programmatic calls
+      const unlockUtterance = new SpeechSynthesisUtterance(' ');
+      unlockUtterance.volume = 0;
+      speechSynthesis.speak(unlockUtterance);
     }
     setIsEnabled(!isEnabled);
   }, [isEnabled]);
