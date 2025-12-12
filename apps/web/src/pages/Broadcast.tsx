@@ -5,16 +5,18 @@ import { useAudioCapture } from '../hooks/useAudioCapture';
 import ConnectionStatus from '../components/ConnectionStatus';
 import ShareLink from '../components/ShareLink';
 import AudioCapture from '../components/AudioCapture';
-import type { ServerMessage } from '../lib/types';
+import type { ServerMessage, TranslationDirection } from '../lib/types';
 
 export default function Broadcast() {
   const [searchParams] = useSearchParams();
   const paramName = searchParams.get('name');
   const paramSlug = searchParams.get('slug');
+  const paramDirection = searchParams.get('direction') as TranslationDirection | null;
 
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomSlug, setRoomSlug] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(paramName);
+  const [direction, setDirection] = useState<TranslationDirection>(paramDirection || 'es-to-en');
   const [listenerCount, setListenerCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -24,10 +26,14 @@ export default function Broadcast() {
         setRoomId(message.roomId);
         setRoomSlug(message.slug);
         setRoomName(message.name);
+        setDirection(message.direction);
         break;
       case 'joined':
         if (message.roomName) {
           setRoomName(message.roomName);
+        }
+        if (message.direction) {
+          setDirection(message.direction);
         }
         break;
       case 'listener_count':
@@ -66,9 +72,10 @@ export default function Broadcast() {
         type: 'create_room',
         name: paramName || undefined,
         slug: paramSlug || undefined,
+        direction: paramDirection || 'es-to-en',
       });
     }
-  }, [isConnected, roomId, send, paramName, paramSlug]);
+  }, [isConnected, roomId, send, paramName, paramSlug, paramDirection]);
 
   const handleStartBroadcast = () => {
     startRecording();
@@ -99,12 +106,17 @@ export default function Broadcast() {
           </div>
         )}
 
-        {/* Room name */}
-        {roomName && (
-          <div className="mb-4 text-center">
+        {/* Room name and direction */}
+        <div className="mb-4 text-center">
+          {roomName && (
             <h2 className="text-2xl font-bold text-gray-900">{roomName}</h2>
+          )}
+          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mt-2 ${
+            direction === 'es-to-en' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+          }`}>
+            {direction === 'es-to-en' ? 'Spanish → English' : 'English → Spanish'}
           </div>
-        )}
+        </div>
 
         {/* Share link */}
         {(roomSlug || roomId) && (
@@ -152,7 +164,7 @@ export default function Broadcast() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-500">
                 Speak clearly into your microphone. Your speech will be
-                translated to English in real-time.
+                translated {direction === 'es-to-en' ? 'to English' : 'to Spanish'} in real-time.
               </p>
             </div>
           )}
@@ -164,8 +176,8 @@ export default function Broadcast() {
           <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
             <li>Share the link above with visitors who need translation</li>
             <li>Click the button to start broadcasting</li>
-            <li>Speak clearly in Spanish</li>
-            <li>Visitors will see the English translation in real-time</li>
+            <li>Speak clearly in {direction === 'es-to-en' ? 'Spanish' : 'English'}</li>
+            <li>Visitors will see the {direction === 'es-to-en' ? 'English' : 'Spanish'} translation in real-time</li>
             <li>Click again to stop the broadcast</li>
           </ol>
         </div>

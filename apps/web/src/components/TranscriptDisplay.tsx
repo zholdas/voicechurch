@@ -40,7 +40,7 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
               entry.isFinal ? 'text-gray-900' : 'text-gray-500 italic'
             }`}
           >
-            {entry.english}{' '}
+            {entry.translated}{' '}
           </span>
         ))}
       </div>

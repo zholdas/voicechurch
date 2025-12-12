@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage, ExtendedWebSocket } from './types.js';
+import type { ClientMessage, ServerMessage, ExtendedWebSocket, TranslationDirection } from './types.js';
 import {
   createRoom,
   getRoom,
@@ -63,7 +63,7 @@ export function handleConnection(ws: ExtendedWebSocket): void {
 function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
   switch (message.type) {
     case 'create_room':
-      handleCreateRoom(ws, message.name, message.slug);
+      handleCreateRoom(ws, message.name, message.slug, message.direction);
       break;
 
     case 'join_room':
@@ -83,9 +83,9 @@ function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
   }
 }
 
-function handleCreateRoom(ws: ExtendedWebSocket, name?: string, slug?: string): void {
+function handleCreateRoom(ws: ExtendedWebSocket, name?: string, slug?: string, direction?: TranslationDirection): void {
   try {
-    const room = createRoom({ name, slug });
+    const room = createRoom({ name, slug, direction });
 
     // Automatically join as broadcaster
     addBroadcaster(room.id, ws);
@@ -97,6 +97,7 @@ function handleCreateRoom(ws: ExtendedWebSocket, name?: string, slug?: string): 
       roomId: room.id,
       slug: room.slug,
       name: room.name,
+      direction: room.translationDirection,
     });
 
     send(ws, {
@@ -105,6 +106,7 @@ function handleCreateRoom(ws: ExtendedWebSocket, name?: string, slug?: string): 
       role: 'broadcaster',
       listenerCount: 0,
       roomName: room.name,
+      direction: room.translationDirection,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create room';
@@ -143,6 +145,7 @@ function handleJoinRoom(
     role,
     listenerCount: room.listeners.size,
     roomName: room.name,
+    direction: room.translationDirection,
   });
 
   // Notify if broadcast is already active

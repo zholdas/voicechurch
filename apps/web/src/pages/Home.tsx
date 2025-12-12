@@ -1,16 +1,22 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import type { TranslationDirection } from '../lib/types';
 
 export default function Home() {
   const navigate = useNavigate();
   const [roomName, setRoomName] = useState('');
   const [roomSlug, setRoomSlug] = useState('');
+  const [direction, setDirection] = useState<TranslationDirection>('es-to-en');
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const handleCreatePermanentRoom = () => {
     if (!roomName.trim()) return;
     const slug = roomSlug.trim() || roomName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    navigate(`/broadcast?name=${encodeURIComponent(roomName)}&slug=${encodeURIComponent(slug)}`);
+    navigate(`/broadcast?name=${encodeURIComponent(roomName)}&slug=${encodeURIComponent(slug)}&direction=${direction}`);
+  };
+
+  const handleQuickBroadcast = (dir: TranslationDirection) => {
+    navigate(`/broadcast?direction=${dir}`);
   };
 
   return (
@@ -80,25 +86,47 @@ export default function Home() {
 
         {/* CTA */}
         <div className="text-center">
-          <Link
-            to="/broadcast"
-            className="inline-flex items-center px-8 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors text-lg"
-          >
-            <svg
-              className="w-6 h-6 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <h3 className="text-lg font-medium text-gray-700 mb-4">Quick Broadcast</h3>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={() => handleQuickBroadcast('es-to-en')}
+              className="inline-flex items-center justify-center px-6 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-              />
-            </svg>
-            Quick Broadcast
-          </Link>
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              </svg>
+              Spanish → English
+            </button>
+            <button
+              onClick={() => handleQuickBroadcast('en-to-es')}
+              className="inline-flex items-center justify-center px-6 py-4 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <svg
+                className="w-5 h-5 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              </svg>
+              English → Spanish
+            </button>
+          </div>
           <p className="mt-4 text-sm text-gray-500">
             Start a temporary room with a random URL
           </p>
@@ -145,6 +173,19 @@ export default function Home() {
                     <p className="text-xs text-gray-500 mt-1">
                       Use lowercase letters, numbers, and hyphens
                     </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Translation Direction
+                    </label>
+                    <select
+                      value={direction}
+                      onChange={(e) => setDirection(e.target.value as TranslationDirection)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="es-to-en">Spanish → English</option>
+                      <option value="en-to-es">English → Spanish</option>
+                    </select>
                   </div>
                   <div className="flex gap-3">
                     <button

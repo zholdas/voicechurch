@@ -1,7 +1,7 @@
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import { config } from '../config.js';
 import { broadcastToListeners, setDeepgramConnection, getRoom } from '../websocket/rooms.js';
-import { translateToEnglish, translateWithDebounce, cancelPendingTranslation } from './translation.js';
+import { translate, translateWithDebounce, cancelPendingTranslation } from './translation.js';
 import type { ServerMessage } from '../websocket/types.js';
 
 export function createDeepgramConnection(roomId: string): void {
@@ -18,9 +18,12 @@ export function createDeepgramConnection(roomId: string): void {
 
   const deepgram = createClient(config.deepgram.apiKey);
 
+  // Set language based on translation direction
+  const language = room.translationDirection === 'es-to-en' ? 'es' : 'en';
+
   const connection = deepgram.listen.live({
     model: 'nova-2',
-    language: 'es', // Spanish
+    language,
     smart_format: true,
     interim_results: true,
     utterance_end_ms: 1000,
@@ -30,7 +33,7 @@ export function createDeepgramConnection(roomId: string): void {
   });
 
   connection.on(LiveTranscriptionEvents.Open, () => {
-    console.log(`Deepgram connection opened for room: ${roomId}`);
+    console.log(`Deepgram connection opened for room: ${roomId} (language: ${language})`);
   });
 
   connection.on(LiveTranscriptionEvents.Transcript, async (data) => {
@@ -39,16 +42,17 @@ export function createDeepgramConnection(roomId: string): void {
 
     const isFinal = data.is_final;
     const timestamp = Date.now();
+    const direction = room.translationDirection;
 
     if (isFinal) {
       // For final results, translate immediately
       cancelPendingTranslation(roomId);
-      const english = await translateToEnglish(transcript);
+      const translated = await translate(transcript, direction);
 
       const message: ServerMessage = {
         type: 'transcript',
-        spanish: transcript,
-        english,
+        source: transcript,
+        translated,
         isFinal: true,
         timestamp,
       };
@@ -56,11 +60,11 @@ export function createDeepgramConnection(roomId: string): void {
       broadcastToListeners(roomId, message);
     } else {
       // For interim results, debounce translation (300ms)
-      translateWithDebounce(roomId, transcript, 300, (english) => {
+      translateWithDebounce(roomId, transcript, direction, 300, (translated) => {
         const message: ServerMessage = {
           type: 'transcript',
-          spanish: transcript,
-          english,
+          source: transcript,
+          translated,
           isFinal: false,
           timestamp,
         };

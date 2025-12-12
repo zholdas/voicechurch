@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import type { Room, ExtendedWebSocket, ServerMessage } from './types.js';
+import type { Room, ExtendedWebSocket, ServerMessage, TranslationDirection } from './types.js';
 
 // In-memory room storage
 const rooms = new Map<string, Room>();
@@ -21,7 +21,7 @@ export function getRoomBySlug(slug: string): Room | undefined {
   return undefined;
 }
 
-export function createRoom(options?: { name?: string; slug?: string }): Room {
+export function createRoom(options?: { name?: string; slug?: string; direction?: TranslationDirection }): Room {
   const slug = options?.slug || generateRoomId();
 
   // Validate slug if custom
@@ -40,6 +40,7 @@ export function createRoom(options?: { name?: string; slug?: string }): Room {
     slug,
     name: options?.name || `Room ${slug}`,
     isPersistent: !!options?.slug,
+    translationDirection: options?.direction || 'es-to-en',
     createdAt: new Date(),
     broadcaster: null,
     listeners: new Set(),
@@ -48,7 +49,7 @@ export function createRoom(options?: { name?: string; slug?: string }): Room {
   };
 
   rooms.set(roomId, room);
-  console.log(`Room created: ${roomId} (slug: ${slug}, persistent: ${room.isPersistent})`);
+  console.log(`Room created: ${roomId} (slug: ${slug}, direction: ${room.translationDirection}, persistent: ${room.isPersistent})`);
 
   return room;
 }

@@ -7,14 +7,14 @@ export function useTranscript() {
   const entryIdRef = useRef(0);
 
   const addTranscript = useCallback(
-    (spanish: string, english: string, isFinal: boolean, timestamp: number) => {
+    (source: string, translated: string, isFinal: boolean, timestamp: number) => {
       if (isFinal) {
         // Add final entry and clear interim
         setEntries((prev) => {
           const newEntry: TranscriptEntry = {
             id: `entry-${++entryIdRef.current}`,
-            spanish,
-            english,
+            source,
+            translated,
             isFinal: true,
             timestamp,
           };
@@ -25,8 +25,8 @@ export function useTranscript() {
         // Update interim entry
         setCurrentInterim({
           id: 'interim',
-          spanish,
-          english,
+          source,
+          translated,
           isFinal: false,
           timestamp,
         });
@@ -44,8 +44,8 @@ export function useTranscript() {
   // Get all entries including current interim
   const allEntries = currentInterim ? [...entries, currentInterim] : entries;
 
-  // Get full text for display
-  const fullText = allEntries.map((e) => e.english).join(' ');
+  // Get full text for display (translated text)
+  const fullText = allEntries.map((e) => e.translated).join(' ');
 
   return {
     entries: allEntries,

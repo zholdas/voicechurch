@@ -1,5 +1,6 @@
 import * as deepl from 'deepl-node';
 import { config } from '../config.js';
+import type { TranslationDirection } from '../websocket/types.js';
 
 let translator: deepl.Translator | null = null;
 
@@ -32,14 +33,36 @@ export async function translateToEnglish(spanishText: string): Promise<string> {
   }
 }
 
+export async function translateToSpanish(englishText: string): Promise<string> {
+  const trans = getTranslator();
+
+  if (!trans) {
+    console.warn('DeepL API key not configured, returning original text');
+    return `[EN] ${englishText}`;
+  }
+
+  try {
+    const result = await trans.translateText(englishText, 'en', 'es');
+    return result.text;
+  } catch (error) {
+    console.error('Translation error:', error);
+    return `[Translation Error] ${englishText}`;
+  }
+}
+
+export async function translate(text: string, direction: TranslationDirection): Promise<string> {
+  return direction === 'es-to-en' ? translateToEnglish(text) : translateToSpanish(text);
+}
+
 // Debounced translation for interim results
 const pendingTranslations = new Map<string, NodeJS.Timeout>();
 
 export function translateWithDebounce(
   key: string,
-  spanishText: string,
+  text: string,
+  direction: TranslationDirection,
   delayMs: number,
-  callback: (english: string) => void
+  callback: (translated: string) => void
 ): void {
   // Clear previous pending translation for this key
   const existing = pendingTranslations.get(key);
@@ -50,8 +73,8 @@ export function translateWithDebounce(
   // Set new delayed translation
   const timeout = setTimeout(async () => {
     pendingTranslations.delete(key);
-    const english = await translateToEnglish(spanishText);
-    callback(english);
+    const translated = await translate(text, direction);
+    callback(translated);
   }, delayMs);
 
   pendingTranslations.set(key, timeout);

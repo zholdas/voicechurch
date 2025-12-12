@@ -37,14 +37,14 @@ export default function Listen() {
           break;
         case 'transcript':
           addTranscript(
-            message.spanish,
-            message.english,
+            message.source,
+            message.translated,
             message.isFinal,
             message.timestamp
           );
           // Speak final transcripts
           if (message.isFinal && ttsEnabled) {
-            speak(message.english);
+            speak(message.translated);
           }
           break;
         case 'listener_count':
