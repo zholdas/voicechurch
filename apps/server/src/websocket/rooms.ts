@@ -9,11 +9,37 @@ function generateRoomId(): string {
   return crypto.randomUUID().slice(0, 8);
 }
 
-export function createRoom(): Room {
-  const roomId = generateRoomId();
+// Validate slug format (alphanumeric, hyphens, lowercase)
+function validateSlug(slug: string): boolean {
+  return /^[a-z0-9-]+$/.test(slug) && slug.length >= 3 && slug.length <= 50;
+}
 
+export function getRoomBySlug(slug: string): Room | undefined {
+  for (const room of rooms.values()) {
+    if (room.slug === slug) return room;
+  }
+  return undefined;
+}
+
+export function createRoom(options?: { name?: string; slug?: string }): Room {
+  const slug = options?.slug || generateRoomId();
+
+  // Validate slug if custom
+  if (options?.slug && !validateSlug(options.slug)) {
+    throw new Error('Invalid room URL. Use lowercase letters, numbers, and hyphens (3-50 chars)');
+  }
+
+  // Check if slug already exists
+  if (getRoomBySlug(slug)) {
+    throw new Error('Room with this URL already exists');
+  }
+
+  const roomId = generateRoomId();
   const room: Room = {
     id: roomId,
+    slug,
+    name: options?.name || `Room ${slug}`,
+    isPersistent: !!options?.slug,
     createdAt: new Date(),
     broadcaster: null,
     listeners: new Set(),
@@ -22,7 +48,7 @@ export function createRoom(): Room {
   };
 
   rooms.set(roomId, room);
-  console.log(`Room created: ${roomId}`);
+  console.log(`Room created: ${roomId} (slug: ${slug}, persistent: ${room.isPersistent})`);
 
   return room;
 }
@@ -102,8 +128,8 @@ export function removeClient(ws: ExtendedWebSocket): void {
 
     console.log(`Broadcaster left room: ${roomId}`);
 
-    // Delete room if no listeners
-    if (room.listeners.size === 0) {
+    // Delete room if no listeners and not persistent
+    if (room.listeners.size === 0 && !room.isPersistent) {
       deleteRoom(roomId);
     }
   } else if (role === 'listener') {
@@ -112,8 +138,8 @@ export function removeClient(ws: ExtendedWebSocket): void {
 
     console.log(`Listener left room: ${roomId}, remaining: ${room.listeners.size}`);
 
-    // Delete room if empty
-    if (room.listeners.size === 0 && !room.broadcaster) {
+    // Delete room if empty and not persistent
+    if (room.listeners.size === 0 && !room.broadcaster && !room.isPersistent) {
       deleteRoom(roomId);
     }
   }

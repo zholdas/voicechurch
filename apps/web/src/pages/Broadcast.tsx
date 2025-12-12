@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import ConnectionStatus from '../components/ConnectionStatus';
@@ -8,7 +8,13 @@ import AudioCapture from '../components/AudioCapture';
 import type { ServerMessage } from '../lib/types';
 
 export default function Broadcast() {
+  const [searchParams] = useSearchParams();
+  const paramName = searchParams.get('name');
+  const paramSlug = searchParams.get('slug');
+
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomSlug, setRoomSlug] = useState<string | null>(null);
+  const [roomName, setRoomName] = useState<string | null>(paramName);
   const [listenerCount, setListenerCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -16,6 +22,13 @@ export default function Broadcast() {
     switch (message.type) {
       case 'room_created':
         setRoomId(message.roomId);
+        setRoomSlug(message.slug);
+        setRoomName(message.name);
+        break;
+      case 'joined':
+        if (message.roomName) {
+          setRoomName(message.roomName);
+        }
         break;
       case 'listener_count':
         setListenerCount(message.count);
@@ -49,9 +62,13 @@ export default function Broadcast() {
   // Create room when connected
   useEffect(() => {
     if (isConnected && !roomId) {
-      send({ type: 'create_room' });
+      send({
+        type: 'create_room',
+        name: paramName || undefined,
+        slug: paramSlug || undefined,
+      });
     }
-  }, [isConnected, roomId, send]);
+  }, [isConnected, roomId, send, paramName, paramSlug]);
 
   const handleStartBroadcast = () => {
     startRecording();
@@ -82,10 +99,17 @@ export default function Broadcast() {
           </div>
         )}
 
+        {/* Room name */}
+        {roomName && (
+          <div className="mb-4 text-center">
+            <h2 className="text-2xl font-bold text-gray-900">{roomName}</h2>
+          </div>
+        )}
+
         {/* Share link */}
-        {roomId && (
+        {(roomSlug || roomId) && (
           <div className="mb-8">
-            <ShareLink roomId={roomId} />
+            <ShareLink roomId={roomSlug || roomId!} />
           </div>
         )}
 

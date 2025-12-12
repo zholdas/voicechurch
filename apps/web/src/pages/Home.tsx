@@ -1,6 +1,18 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Home() {
+  const navigate = useNavigate();
+  const [roomName, setRoomName] = useState('');
+  const [roomSlug, setRoomSlug] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  const handleCreatePermanentRoom = () => {
+    if (!roomName.trim()) return;
+    const slug = roomSlug.trim() || roomName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    navigate(`/broadcast?name=${encodeURIComponent(roomName)}&slug=${encodeURIComponent(slug)}`);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       <div className="max-w-4xl mx-auto px-4 py-16">
@@ -85,11 +97,78 @@ export default function Home() {
                 d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
               />
             </svg>
-            Start Broadcasting
+            Quick Broadcast
           </Link>
           <p className="mt-4 text-sm text-gray-500">
-            Spanish to English translation powered by AI
+            Start a temporary room with a random URL
           </p>
+
+          {/* Create Permanent Room */}
+          <div className="mt-8">
+            {!showCreateForm ? (
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Or create a permanent room with custom URL
+              </button>
+            ) : (
+              <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6 text-left">
+                <h3 className="font-semibold text-gray-900 mb-4">Create Permanent Room</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Room Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={roomName}
+                      onChange={(e) => setRoomName(e.target.value)}
+                      placeholder="e.g., Sunday Service"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Custom URL (optional)
+                    </label>
+                    <div className="flex items-center">
+                      <span className="text-gray-500 text-sm mr-1">/room/</span>
+                      <input
+                        type="text"
+                        value={roomSlug}
+                        onChange={(e) => setRoomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        placeholder="sunday-service"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Use lowercase letters, numbers, and hyphens
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleCreatePermanentRoom}
+                      disabled={!roomName.trim()}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Create Room
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCreateForm(false);
+                        setRoomName('');
+                        setRoomSlug('');
+                      }}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Features */}

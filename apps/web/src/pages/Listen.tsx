@@ -10,6 +10,7 @@ import type { ServerMessage } from '../lib/types';
 
 export default function Listen() {
   const { roomId } = useParams<{ roomId: string }>();
+  const [roomName, setRoomName] = useState<string | null>(null);
   const [broadcastActive, setBroadcastActive] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
   const [fontSize, setFontSize] = useState(20);
@@ -23,6 +24,9 @@ export default function Listen() {
       switch (message.type) {
         case 'joined':
           setListenerCount(message.listenerCount);
+          if (message.roomName) {
+            setRoomName(message.roomName);
+          }
           break;
         case 'broadcast_started':
           setBroadcastActive(true);
@@ -75,9 +79,17 @@ export default function Listen() {
       {/* Header */}
       <header className="bg-white shadow-sm flex-shrink-0">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-blue-600">
-            VoiceChurch
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/" className="text-lg font-bold text-blue-600">
+              VoiceChurch
+            </Link>
+            {roomName && (
+              <span className="text-gray-400">|</span>
+            )}
+            {roomName && (
+              <span className="text-gray-700 font-medium">{roomName}</span>
+            )}
+          </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
               {listenerCount} listener{listenerCount !== 1 ? 's' : ''}

@@ -3,6 +3,7 @@ import type { ClientMessage, ServerMessage, ExtendedWebSocket } from './types.js
 import {
   createRoom,
   getRoom,
+  getRoomBySlug,
   addBroadcaster,
   addListener,
   removeClient,
@@ -62,7 +63,7 @@ export function handleConnection(ws: ExtendedWebSocket): void {
 function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
   switch (message.type) {
     case 'create_room':
-      handleCreateRoom(ws);
+      handleCreateRoom(ws, message.name, message.slug);
       break;
 
     case 'join_room':
@@ -82,33 +83,42 @@ function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
   }
 }
 
-function handleCreateRoom(ws: ExtendedWebSocket): void {
-  const room = createRoom();
+function handleCreateRoom(ws: ExtendedWebSocket, name?: string, slug?: string): void {
+  try {
+    const room = createRoom({ name, slug });
 
-  // Automatically join as broadcaster
-  addBroadcaster(room.id, ws);
+    // Automatically join as broadcaster
+    addBroadcaster(room.id, ws);
 
-  // Don't create Deepgram connection yet - wait for audio
+    // Don't create Deepgram connection yet - wait for audio
 
-  send(ws, {
-    type: 'room_created',
-    roomId: room.id,
-  });
+    send(ws, {
+      type: 'room_created',
+      roomId: room.id,
+      slug: room.slug,
+      name: room.name,
+    });
 
-  send(ws, {
-    type: 'joined',
-    roomId: room.id,
-    role: 'broadcaster',
-    listenerCount: 0,
-  });
+    send(ws, {
+      type: 'joined',
+      roomId: room.id,
+      role: 'broadcaster',
+      listenerCount: 0,
+      roomName: room.name,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create room';
+    sendError(ws, 'ROOM_CREATE_ERROR', message);
+  }
 }
 
 function handleJoinRoom(
   ws: ExtendedWebSocket,
-  roomId: string,
+  roomIdOrSlug: string,
   role: 'broadcaster' | 'listener'
 ): void {
-  const room = getRoom(roomId);
+  // Look up by ID first, then by slug
+  const room = getRoom(roomIdOrSlug) || getRoomBySlug(roomIdOrSlug);
 
   if (!room) {
     sendError(ws, 'ROOM_NOT_FOUND', 'Room does not exist');
@@ -121,17 +131,18 @@ function handleJoinRoom(
       return;
     }
 
-    addBroadcaster(roomId, ws);
+    addBroadcaster(room.id, ws);
     // Don't create Deepgram connection yet - wait for audio
   } else {
-    addListener(roomId, ws);
+    addListener(room.id, ws);
   }
 
   send(ws, {
     type: 'joined',
-    roomId,
+    roomId: room.id,
     role,
     listenerCount: room.listeners.size,
+    roomName: room.name,
   });
 
   // Notify if broadcast is already active
