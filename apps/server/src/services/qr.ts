@@ -52,10 +52,14 @@ class QRMapperService {
 
   private async postRequest<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
     if (!this.isConfigured()) {
+      console.error('QRMapper not configured. apiKey:', !!this.apiKey, 'webhookUrl:', !!this.webhookUrl);
       throw new Error('QRMapper API key or webhook URL not configured');
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const url = `${this.baseUrl}${endpoint}`;
+    console.log('QRMapper POST request:', url, JSON.stringify(body));
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -64,12 +68,14 @@ class QRMapperService {
       body: JSON.stringify(body),
     });
 
+    const responseText = await response.text();
+    console.log('QRMapper response:', response.status, responseText);
+
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`QRMapper API error: ${response.status} ${errorText}`);
+      throw new Error(`QRMapper API error: ${response.status} ${responseText}`);
     }
 
-    return response.json() as Promise<T>;
+    return JSON.parse(responseText) as T;
   }
 
   private async getRequest<T>(endpoint: string, params: Record<string, string>): Promise<T> {
