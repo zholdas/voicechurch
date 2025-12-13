@@ -10,6 +10,7 @@ export const config = {
 
   session: {
     secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',
+    cookieDomain: process.env.COOKIE_DOMAIN || undefined,
   },
 
   google: {
