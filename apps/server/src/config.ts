@@ -26,6 +26,12 @@ export const config = {
   deepl: {
     apiKey: process.env.DEEPL_API_KEY || '',
   },
+
+  qrMapper: {
+    apiKey: process.env.QRMAPPER_API_KEY || '',
+    baseUrl: 'https://qrmapper.com/api/1.1/wf',
+    webhookUrl: process.env.QRMAPPER_WEBHOOK_URL || '',
+  },
 };
 
 export function validateConfig(): void {
@@ -51,5 +57,10 @@ export function validateConfig(): void {
   // Info about optional OAuth
   if (!config.google.clientId || !config.google.clientSecret) {
     console.info('Info: Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to enable.');
+  }
+
+  // Info about optional QRMapper
+  if (!config.qrMapper.apiKey) {
+    console.info('Info: QRMapper not configured. Set QRMAPPER_API_KEY to enable QR code generation.');
   }
 }

@@ -9,6 +9,7 @@ import { getRoomCount, getActiveRoomIds, initRooms, getPublicRoomsWithStatus } f
 import { setupPassport, passport } from './auth/passport.js';
 import { authRouter } from './auth/routes.js';
 import { roomsRouter } from './api/rooms.js';
+import { webhooksRouter } from './api/webhooks.js';
 import type { ExtendedWebSocket } from './websocket/types.js';
 
 // Log startup
@@ -58,6 +59,9 @@ app.use('/auth', authRouter);
 
 // API routes
 app.use('/api/rooms', roomsRouter);
+
+// Webhook routes
+app.use('/webhooks', webhooksRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

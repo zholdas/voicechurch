@@ -1,4 +1,4 @@
-import type { User, RoomInfo, PublicRoomInfo, TranslationDirection } from './types';
+import type { User, RoomInfo, PublicRoomInfo, TranslationDirection, QRInfo } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -67,4 +67,12 @@ export const roomsApi = {
     fetchApi<{ success: boolean }>(`/api/rooms/${id}`, {
       method: 'DELETE',
     }),
+
+  generateQR: (id: string) =>
+    fetchApi<QRInfo>(`/api/rooms/${id}/qr`, {
+      method: 'POST',
+    }),
+
+  getQRInfo: (id: string) =>
+    fetchApi<QRInfo>(`/api/rooms/${id}/qr`),
 };

@@ -45,6 +45,21 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_rooms_public ON rooms(is_public);
 `);
 
+// Migration: Add QR code fields to rooms table if they don't exist
+try {
+  db.exec(`ALTER TABLE rooms ADD COLUMN qr_id TEXT`);
+  console.log('Added qr_id column to rooms table');
+} catch {
+  // Column already exists, ignore
+}
+
+try {
+  db.exec(`ALTER TABLE rooms ADD COLUMN qr_image_url TEXT`);
+  console.log('Added qr_image_url column to rooms table');
+} catch {
+  // Column already exists, ignore
+}
+
 // User types and functions
 export interface DbUser {
   id: string;
@@ -129,6 +144,8 @@ export interface DbRoom {
   isPublic: boolean;
   ownerId: string;
   createdAt: Date;
+  qrId: string | null;
+  qrImageUrl: string | null;
 }
 
 export function createRoom(data: {
@@ -212,6 +229,19 @@ export function deleteRoom(id: string): boolean {
   return result.changes > 0;
 }
 
+export function updateRoomQR(id: string, qrId: string, qrImageUrl: string): DbRoom | null {
+  const stmt = db.prepare(`UPDATE rooms SET qr_id = ?, qr_image_url = ? WHERE id = ?`);
+  stmt.run(qrId, qrImageUrl, id);
+  return getRoomById(id);
+}
+
+export function getRoomByQrId(qrId: string): DbRoom | null {
+  const stmt = db.prepare('SELECT * FROM rooms WHERE qr_id = ?');
+  const row = stmt.get(qrId) as any;
+  if (!row) return null;
+  return mapRoomRow(row);
+}
+
 export function getAllRooms(): DbRoom[] {
   const stmt = db.prepare('SELECT * FROM rooms ORDER BY created_at DESC');
   const rows = stmt.all() as any[];
@@ -227,6 +257,8 @@ function mapRoomRow(row: any): DbRoom {
     isPublic: row.is_public === 1,
     ownerId: row.owner_id,
     createdAt: new Date(row.created_at),
+    qrId: row.qr_id || null,
+    qrImageUrl: row.qr_image_url || null,
   };
 }
 

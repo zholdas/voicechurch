@@ -5,7 +5,8 @@ import { useAudioCapture } from '../hooks/useAudioCapture';
 import ConnectionStatus from '../components/ConnectionStatus';
 import ShareLink from '../components/ShareLink';
 import AudioCapture from '../components/AudioCapture';
-import type { ServerMessage, TranslationDirection } from '../lib/types';
+import { roomsApi } from '../lib/api';
+import type { ServerMessage, TranslationDirection, RoomInfo } from '../lib/types';
 
 export default function Broadcast() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
@@ -25,6 +26,7 @@ export default function Broadcast() {
   const [listenerCount, setListenerCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [roomReady, setRoomReady] = useState(false);
+  const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
 
   const handleMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
@@ -74,6 +76,15 @@ export default function Broadcast() {
   useEffect(() => {
     connect();
   }, [connect]);
+
+  // Fetch room info for persistent rooms (to get QR code data)
+  useEffect(() => {
+    if (isExistingRoom && urlRoomId) {
+      roomsApi.getRoom(urlRoomId)
+        .then(setRoomInfo)
+        .catch((err) => console.error('Failed to fetch room info:', err));
+    }
+  }, [isExistingRoom, urlRoomId]);
 
   // Create or join room when connected
   useEffect(() => {
@@ -149,7 +160,11 @@ export default function Broadcast() {
         {/* Share link */}
         {(roomSlug || roomId) && (
           <div className="mb-8">
-            <ShareLink roomId={roomSlug || roomId!} />
+            <ShareLink
+              roomId={roomSlug || roomId!}
+              roomDbId={roomInfo?.id}
+              qrImageUrl={roomInfo?.qrImageUrl}
+            />
           </div>
         )}
 

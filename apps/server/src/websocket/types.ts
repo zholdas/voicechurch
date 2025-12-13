@@ -34,6 +34,8 @@ export interface Room {
   listeners: Set<WebSocket>;
   deepgramConnection: unknown;
   isActive: boolean;
+  qrId: string | null;
+  qrImageUrl: string | null;
 }
 
 export interface ExtendedWebSocket extends WebSocket {

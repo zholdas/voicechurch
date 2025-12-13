@@ -32,6 +32,8 @@ export function initRooms(): void {
       listeners: new Set(),
       deepgramConnection: null,
       isActive: false,
+      qrId: dbRoom.qrId,
+      qrImageUrl: dbRoom.qrImageUrl,
     };
     rooms.set(room.id, room);
   }
@@ -73,6 +75,8 @@ export function createRoom(options?: { name?: string; slug?: string; direction?:
     listeners: new Set(),
     deepgramConnection: null,
     isActive: false,
+    qrId: null,
+    qrImageUrl: null,
   };
 
   rooms.set(roomId, room);
@@ -122,11 +126,29 @@ export function createPersistentRoom(options: {
     listeners: new Set(),
     deepgramConnection: null,
     isActive: false,
+    qrId: dbRoom.qrId,
+    qrImageUrl: dbRoom.qrImageUrl,
   };
 
   rooms.set(room.id, room);
   console.log(`Persistent room created: ${room.id} (slug: ${room.slug}, public: ${room.isPublic})`);
 
+  return room;
+}
+
+// Update QR code info for a room
+export function updateRoomQR(roomId: string, qrId: string, qrImageUrl: string): Room | null {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+
+  // Update in database
+  db.updateRoomQR(roomId, qrId, qrImageUrl);
+
+  // Update in memory
+  room.qrId = qrId;
+  room.qrImageUrl = qrImageUrl;
+
+  console.log(`QR code updated for room ${roomId}: ${qrId}`);
   return room;
 }
 
@@ -357,6 +379,8 @@ export function getUserRoomsWithStatus(ownerId: string): Array<{
   isPublic: boolean;
   isActive: boolean;
   listenerCount: number;
+  qrId: string | null;
+  qrImageUrl: string | null;
 }> {
   return Array.from(rooms.values())
     .filter(r => r.isPersistent && r.ownerId === ownerId)
@@ -368,6 +392,8 @@ export function getUserRoomsWithStatus(ownerId: string): Array<{
       isPublic: r.isPublic,
       isActive: r.isActive,
       listenerCount: r.listeners.size,
+      qrId: r.qrId,
+      qrImageUrl: r.qrImageUrl,
     }));
 }
 
@@ -380,6 +406,8 @@ export function getRoomWithStatus(slugOrId: string): {
   isPublic: boolean;
   isActive: boolean;
   listenerCount: number;
+  qrId: string | null;
+  qrImageUrl: string | null;
 } | null {
   const room = getRoom(slugOrId) || getRoomBySlug(slugOrId);
   if (!room) return null;
@@ -392,5 +420,7 @@ export function getRoomWithStatus(slugOrId: string): {
     isPublic: room.isPublic,
     isActive: room.isActive,
     listenerCount: room.listeners.size,
+    qrId: room.qrId,
+    qrImageUrl: room.qrImageUrl,
   };
 }

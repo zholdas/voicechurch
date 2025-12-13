@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { roomsApi } from '../lib/api';
 import type { RoomInfo, TranslationDirection } from '../lib/types';
+import QRCodeDisplay from '../components/QRCodeDisplay';
 
 export default function Dashboard() {
   const { user, isLoading: authLoading, isAuthenticated, logout } = useAuth();
@@ -309,6 +310,15 @@ export default function Dashboard() {
                       : 'English → Spanish'}
                   </span>
                   <span>{room.listenerCount} listeners</span>
+                </div>
+
+                {/* QR Code */}
+                <div className="mb-4">
+                  <QRCodeDisplay
+                    roomId={room.id}
+                    qrImageUrl={room.qrImageUrl}
+                    compact
+                  />
                 </div>
 
                 <div className="flex flex-wrap gap-2">

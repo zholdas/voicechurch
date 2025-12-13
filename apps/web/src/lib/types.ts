@@ -46,6 +46,15 @@ export interface RoomInfo {
   isPublic: boolean;
   isActive: boolean;
   listenerCount: number;
+  qrId: string | null;
+  qrImageUrl: string | null;
+}
+
+// QR code info
+export interface QRInfo {
+  qrId: string;
+  qrImageUrl: string;
+  scanCount: number;
 }
 
 // Public room (without isPublic field since they're all public)

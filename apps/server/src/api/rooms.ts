@@ -7,8 +7,12 @@ import {
   deletePersistentRoom,
   updatePersistentRoom,
   getRoomBySlug,
+  updateRoomQR,
+  getRoom,
 } from '../websocket/rooms.js';
 import type { TranslationDirection } from '../websocket/types.js';
+import { qrMapperService } from '../services/qr.js';
+import { config } from '../config.js';
 
 const router = Router();
 
@@ -81,6 +85,24 @@ router.post('/', requireAuth, (req, res) => {
       ownerId: req.user!.id,
     });
 
+    // Generate QR code asynchronously (don't block room creation)
+    if (qrMapperService.isConfigured()) {
+      const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
+      qrMapperService.createQR(roomUrl, room.name)
+        .then(async (qrResponse) => {
+          if (qrResponse.status === 'success' && qrResponse.qr_id) {
+            // Get full QR info to get the image URL
+            const qrInfo = await qrMapperService.getQRInfo(qrResponse.qr_id);
+            if (qrInfo.qr_image_url) {
+              updateRoomQR(room.id, qrResponse.qr_id, qrInfo.qr_image_url);
+            }
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to create QR code:', err);
+        });
+    }
+
     res.status(201).json(room);
   } catch (error) {
     console.error('Failed to create room:', error);
@@ -117,6 +139,103 @@ router.delete('/:id', requireAuth, (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+// POST /api/rooms/:id/qr - Generate QR code for a room (auth required, owner only)
+router.post('/:id/qr', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  // Find room by ID
+  const room = getRoom(id);
+  if (!room || room.ownerId !== req.user!.id) {
+    return res.status(404).json({ error: 'Room not found or not authorized' });
+  }
+
+  // Check if QRMapper is configured
+  if (!qrMapperService.isConfigured()) {
+    return res.status(503).json({ error: 'QR code service not configured' });
+  }
+
+  // Check if room already has a QR code
+  if (room.qrId) {
+    // Get latest info
+    try {
+      const qrInfo = await qrMapperService.getQRInfo(room.qrId);
+      return res.json({
+        qrId: room.qrId,
+        qrImageUrl: qrInfo.qr_image_url || room.qrImageUrl,
+        scanCount: qrInfo.scan_count || 0,
+      });
+    } catch (error) {
+      console.error('Failed to get QR info:', error);
+      return res.json({
+        qrId: room.qrId,
+        qrImageUrl: room.qrImageUrl,
+        scanCount: 0,
+      });
+    }
+  }
+
+  // Create new QR code
+  try {
+    const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
+    const qrResponse = await qrMapperService.createQR(roomUrl, room.name);
+
+    if (qrResponse.status !== 'success' || !qrResponse.qr_id) {
+      return res.status(500).json({ error: 'Failed to create QR code' });
+    }
+
+    // Get full QR info
+    const qrInfo = await qrMapperService.getQRInfo(qrResponse.qr_id);
+
+    if (qrInfo.qr_image_url) {
+      updateRoomQR(room.id, qrResponse.qr_id, qrInfo.qr_image_url);
+    }
+
+    res.json({
+      qrId: qrResponse.qr_id,
+      qrImageUrl: qrInfo.qr_image_url,
+      scanCount: 0,
+    });
+  } catch (error) {
+    console.error('Failed to create QR code:', error);
+    res.status(500).json({ error: 'Failed to create QR code' });
+  }
+});
+
+// GET /api/rooms/:id/qr - Get QR code info and scan count (auth required, owner only)
+router.get('/:id/qr', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  // Find room by ID
+  const room = getRoom(id);
+  if (!room || room.ownerId !== req.user!.id) {
+    return res.status(404).json({ error: 'Room not found or not authorized' });
+  }
+
+  if (!room.qrId) {
+    return res.status(404).json({ error: 'No QR code for this room' });
+  }
+
+  // Get scan count from QRMapper
+  if (qrMapperService.isConfigured()) {
+    try {
+      const qrInfo = await qrMapperService.getQRInfo(room.qrId);
+      return res.json({
+        qrId: room.qrId,
+        qrImageUrl: qrInfo.qr_image_url || room.qrImageUrl,
+        scanCount: qrInfo.scan_count || 0,
+      });
+    } catch (error) {
+      console.error('Failed to get QR info:', error);
+    }
+  }
+
+  res.json({
+    qrId: room.qrId,
+    qrImageUrl: room.qrImageUrl,
+    scanCount: 0,
+  });
 });
 
 export { router as roomsRouter };
