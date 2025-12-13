@@ -12,6 +12,7 @@ import {
 } from '../websocket/rooms.js';
 import type { TranslationDirection } from '../websocket/types.js';
 import { qrMapperService } from '../services/qr.js';
+import { generateQRCode } from '../services/qr-local.js';
 import { config } from '../config.js';
 
 const router = Router();
@@ -86,8 +87,10 @@ router.post('/', requireAuth, (req, res) => {
     });
 
     // Generate QR code asynchronously (don't block room creation)
+    const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
+
     if (qrMapperService.isConfigured()) {
-      const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
+      // Try QRMapper first
       qrMapperService.createQR(roomUrl, room.name)
         .then(async (qrResponse) => {
           if (qrResponse.status === 'Success' && qrResponse.qr_id) {
@@ -98,8 +101,24 @@ router.post('/', requireAuth, (req, res) => {
             }
           }
         })
+        .catch(async (err) => {
+          console.error('QRMapper failed, using local generation:', err);
+          // Fallback: local QR generation
+          try {
+            const { dataUrl } = await generateQRCode(roomUrl);
+            updateRoomQR(room.id, `local-${room.id}`, dataUrl);
+          } catch (localErr) {
+            console.error('Failed to generate local QR code:', localErr);
+          }
+        });
+    } else {
+      // QRMapper not configured - generate locally
+      generateQRCode(roomUrl)
+        .then(({ dataUrl }) => {
+          updateRoomQR(room.id, `local-${room.id}`, dataUrl);
+        })
         .catch((err) => {
-          console.error('Failed to create QR code:', err);
+          console.error('Failed to generate local QR code:', err);
         });
     }
 
@@ -151,54 +170,83 @@ router.post('/:id/qr', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Room not found or not authorized' });
   }
 
-  // Check if QRMapper is configured
-  if (!qrMapperService.isConfigured()) {
-    return res.status(503).json({ error: 'QR code service not configured' });
-  }
+  const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
 
   // Check if room already has a QR code
   if (room.qrId) {
-    // Get latest info
-    try {
-      const qrInfo = await qrMapperService.getQRInfo(room.qrId);
-      return res.json({
-        qrId: room.qrId,
-        qrImageUrl: qrInfo.image_url || room.qrImageUrl,
-        scanCount: qrInfo.scan_count || 0,
-      });
-    } catch (error) {
-      console.error('Failed to get QR info:', error);
+    // For local QR codes, just return cached data
+    if (room.qrId.startsWith('local-')) {
       return res.json({
         qrId: room.qrId,
         qrImageUrl: room.qrImageUrl,
         scanCount: 0,
       });
     }
+
+    // For QRMapper codes, try to get latest info
+    if (qrMapperService.isConfigured()) {
+      try {
+        const qrInfo = await qrMapperService.getQRInfo(room.qrId);
+        return res.json({
+          qrId: room.qrId,
+          qrImageUrl: qrInfo.image_url || room.qrImageUrl,
+          scanCount: qrInfo.scan_count || 0,
+        });
+      } catch (error) {
+        console.error('Failed to get QR info:', error);
+        return res.json({
+          qrId: room.qrId,
+          qrImageUrl: room.qrImageUrl,
+          scanCount: 0,
+        });
+      }
+    }
+
+    return res.json({
+      qrId: room.qrId,
+      qrImageUrl: room.qrImageUrl,
+      scanCount: 0,
+    });
   }
 
-  // Create new QR code
+  // Create new QR code - try QRMapper first, fallback to local
+  if (qrMapperService.isConfigured()) {
+    try {
+      const qrResponse = await qrMapperService.createQR(roomUrl, room.name);
+
+      if (qrResponse.status === 'Success' && qrResponse.qr_id) {
+        // Get full QR info
+        const qrInfo = await qrMapperService.getQRInfo(qrResponse.qr_id);
+
+        if (qrInfo.image_url) {
+          updateRoomQR(room.id, qrResponse.qr_id, qrInfo.image_url);
+        }
+
+        return res.json({
+          qrId: qrResponse.qr_id,
+          qrImageUrl: qrInfo.image_url,
+          scanCount: 0,
+        });
+      }
+    } catch (error) {
+      console.error('QRMapper failed, falling back to local generation:', error);
+      // Fall through to local generation
+    }
+  }
+
+  // Local QR generation (fallback or primary if QRMapper not configured)
   try {
-    const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
-    const qrResponse = await qrMapperService.createQR(roomUrl, room.name);
-
-    if (qrResponse.status !== 'Success' || !qrResponse.qr_id) {
-      return res.status(500).json({ error: 'Failed to create QR code' });
-    }
-
-    // Get full QR info
-    const qrInfo = await qrMapperService.getQRInfo(qrResponse.qr_id);
-
-    if (qrInfo.image_url) {
-      updateRoomQR(room.id, qrResponse.qr_id, qrInfo.image_url);
-    }
+    const { dataUrl } = await generateQRCode(roomUrl);
+    const localQrId = `local-${room.id}`;
+    updateRoomQR(room.id, localQrId, dataUrl);
 
     res.json({
-      qrId: qrResponse.qr_id,
-      qrImageUrl: qrInfo.image_url,
+      qrId: localQrId,
+      qrImageUrl: dataUrl,
       scanCount: 0,
     });
   } catch (error) {
-    console.error('Failed to create QR code:', error);
+    console.error('Failed to generate local QR code:', error);
     res.status(500).json({ error: 'Failed to create QR code' });
   }
 });
@@ -217,7 +265,16 @@ router.get('/:id/qr', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'No QR code for this room' });
   }
 
-  // Get scan count from QRMapper
+  // For local QR codes, no scan tracking available
+  if (room.qrId.startsWith('local-')) {
+    return res.json({
+      qrId: room.qrId,
+      qrImageUrl: room.qrImageUrl,
+      scanCount: 0,
+    });
+  }
+
+  // For QRMapper codes, get scan count
   if (qrMapperService.isConfigured()) {
     try {
       const qrInfo = await qrMapperService.getQRInfo(room.qrId);
