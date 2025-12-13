@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Real-time speech translation service for churches",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:web\"",
     "dev:server": "npm run dev --workspace=apps/server",
