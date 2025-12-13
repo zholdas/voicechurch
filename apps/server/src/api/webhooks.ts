@@ -6,14 +6,14 @@ export const webhooksRouter = Router();
 // QRMapper webhook - called when QR code is created or scanned
 webhooksRouter.post('/qr', (req, res) => {
   try {
-    const { qr_id, destination_url, qr_image_url, event_type, scan_count } = req.body;
+    const { qr_id, target_url, image_url, name, type, event_type, scan_count } = req.body;
 
-    console.log('QRMapper webhook received:', { qr_id, event_type, scan_count });
+    console.log('QRMapper webhook received:', { qr_id, name, event_type, scan_count });
 
-    if (event_type === 'qr_created' && qr_id && qr_image_url) {
+    if (event_type === 'qr_created' && qr_id && image_url) {
       // QR code was created - we'll handle this in the room creation flow
       // This webhook confirms the QR was created successfully
-      console.log(`QR code created: ${qr_id}, image: ${qr_image_url}`);
+      console.log(`QR code created: ${qr_id}, image: ${image_url}`);
     }
 
     if (event_type === 'qr_scanned' && qr_id) {

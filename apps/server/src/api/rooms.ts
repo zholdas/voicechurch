@@ -90,11 +90,11 @@ router.post('/', requireAuth, (req, res) => {
       const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
       qrMapperService.createQR(roomUrl, room.name)
         .then(async (qrResponse) => {
-          if (qrResponse.status === 'success' && qrResponse.qr_id) {
+          if (qrResponse.status === 'Success' && qrResponse.qr_id) {
             // Get full QR info to get the image URL
             const qrInfo = await qrMapperService.getQRInfo(qrResponse.qr_id);
-            if (qrInfo.qr_image_url) {
-              updateRoomQR(room.id, qrResponse.qr_id, qrInfo.qr_image_url);
+            if (qrInfo.image_url) {
+              updateRoomQR(room.id, qrResponse.qr_id, qrInfo.image_url);
             }
           }
         })
@@ -163,7 +163,7 @@ router.post('/:id/qr', requireAuth, async (req, res) => {
       const qrInfo = await qrMapperService.getQRInfo(room.qrId);
       return res.json({
         qrId: room.qrId,
-        qrImageUrl: qrInfo.qr_image_url || room.qrImageUrl,
+        qrImageUrl: qrInfo.image_url || room.qrImageUrl,
         scanCount: qrInfo.scan_count || 0,
       });
     } catch (error) {
@@ -181,20 +181,20 @@ router.post('/:id/qr', requireAuth, async (req, res) => {
     const roomUrl = `${config.frontendUrl}/room/${room.slug}`;
     const qrResponse = await qrMapperService.createQR(roomUrl, room.name);
 
-    if (qrResponse.status !== 'success' || !qrResponse.qr_id) {
+    if (qrResponse.status !== 'Success' || !qrResponse.qr_id) {
       return res.status(500).json({ error: 'Failed to create QR code' });
     }
 
     // Get full QR info
     const qrInfo = await qrMapperService.getQRInfo(qrResponse.qr_id);
 
-    if (qrInfo.qr_image_url) {
-      updateRoomQR(room.id, qrResponse.qr_id, qrInfo.qr_image_url);
+    if (qrInfo.image_url) {
+      updateRoomQR(room.id, qrResponse.qr_id, qrInfo.image_url);
     }
 
     res.json({
       qrId: qrResponse.qr_id,
-      qrImageUrl: qrInfo.qr_image_url,
+      qrImageUrl: qrInfo.image_url,
       scanCount: 0,
     });
   } catch (error) {
@@ -223,7 +223,7 @@ router.get('/:id/qr', requireAuth, async (req, res) => {
       const qrInfo = await qrMapperService.getQRInfo(room.qrId);
       return res.json({
         qrId: room.qrId,
-        qrImageUrl: qrInfo.qr_image_url || room.qrImageUrl,
+        qrImageUrl: qrInfo.image_url || room.qrImageUrl,
         scanCount: qrInfo.scan_count || 0,
       });
     } catch (error) {

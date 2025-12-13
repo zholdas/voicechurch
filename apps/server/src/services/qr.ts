@@ -1,27 +1,37 @@
 import { config } from '../config.js';
 
 export interface QRCreateResponse {
-  status: 'success' | 'error';
+  status: 'Success' | 'error';
   qr_id?: string;
   message?: string;
 }
 
 export interface QRInfoResponse {
-  status: 'success' | 'error';
+  status: 'Success' | 'error';
   qr_id?: string;
-  destination_url?: string;
-  qr_image_url?: string;
+  name?: string;
+  target_url?: string;
+  image_url?: string;
+  type?: string;
   scan_count?: number;
   message?: string;
 }
 
+export interface QRWebhookPayload {
+  qr_id: string;
+  name: string;
+  image_url: string;
+  type: string;
+  target_url: string;
+}
+
 export interface QRUpdateResponse {
-  status: 'success' | 'error';
+  status: 'Success' | 'error';
   message?: string;
 }
 
 export interface QRDeleteResponse {
-  status: 'success' | 'error';
+  status: 'Success' | 'error';
   message?: string;
 }
 
@@ -37,12 +47,12 @@ class QRMapperService {
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.apiKey && !!this.webhookUrl;
   }
 
-  private async request<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+  private async postRequest<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
     if (!this.isConfigured()) {
-      throw new Error('QRMapper API key not configured');
+      throw new Error('QRMapper API key or webhook URL not configured');
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
@@ -62,46 +72,63 @@ class QRMapperService {
     return response.json() as Promise<T>;
   }
 
-  async createQR(destinationUrl: string, name?: string): Promise<QRCreateResponse> {
-    const body: Record<string, unknown> = {
-      destination_url: destinationUrl,
-    };
-
-    if (name) {
-      body.name = name;
+  private async getRequest<T>(endpoint: string, params: Record<string, string>): Promise<T> {
+    if (!this.apiKey) {
+      throw new Error('QRMapper API key not configured');
     }
 
-    if (this.webhookUrl) {
-      body.webhook_url = this.webhookUrl;
+    const url = new URL(`${this.baseUrl}${endpoint}`);
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.append(key, value);
+    });
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`QRMapper API error: ${response.status} ${errorText}`);
     }
 
-    return this.request<QRCreateResponse>('/qr_create', body);
+    return response.json() as Promise<T>;
+  }
+
+  async createQR(targetUrl: string, name: string): Promise<QRCreateResponse> {
+    return this.postRequest<QRCreateResponse>('/qr-create', {
+      name,
+      target_url: targetUrl,
+      webhook_url: this.webhookUrl,
+    });
   }
 
   async getQRInfo(qrId: string): Promise<QRInfoResponse> {
-    return this.request<QRInfoResponse>('/qr_info', { qr_id: qrId });
+    return this.getRequest<QRInfoResponse>('/qr_info', { qr_id: qrId });
   }
 
-  async updateQR(qrId: string, destinationUrl?: string, name?: string): Promise<QRUpdateResponse> {
+  async updateQR(qrId: string, targetUrl?: string, name?: string): Promise<QRUpdateResponse> {
     const body: Record<string, unknown> = { qr_id: qrId };
 
-    if (destinationUrl) {
-      body.destination_url = destinationUrl;
+    if (targetUrl) {
+      body.target_url = targetUrl;
     }
 
     if (name) {
       body.name = name;
     }
 
-    return this.request<QRUpdateResponse>('/qr_update', body);
+    return this.postRequest<QRUpdateResponse>('/qr-update', body);
   }
 
   async deleteQR(qrId: string): Promise<QRDeleteResponse> {
-    return this.request<QRDeleteResponse>('/qr_delete', { qr_id: qrId });
+    return this.postRequest<QRDeleteResponse>('/qr_delete', { qr_id: qrId });
   }
 
   async getQRList(): Promise<{ status: string; qr_codes?: QRInfoResponse[] }> {
-    return this.request('/qr_list', {});
+    return this.getRequest('/qr_list', {});
   }
 }
 
