@@ -32,6 +32,14 @@ export const config = {
     baseUrl: 'https://app.qrmapper.com/api/1.1/wf',
     webhookUrl: process.env.QRMAPPER_WEBHOOK_URL || '',
   },
+
+  googleTts: {
+    // JSON credentials as string (for Railway/cloud deployment)
+    credentialsJson: process.env.GOOGLE_CREDENTIALS_JSON || '',
+    // Voice configuration
+    voiceNameEn: process.env.GOOGLE_TTS_VOICE_EN || 'en-US-Neural2-C',
+    voiceNameEs: process.env.GOOGLE_TTS_VOICE_ES || 'es-ES-Neural2-A',
+  },
 };
 
 export function validateConfig(): void {
@@ -62,5 +70,10 @@ export function validateConfig(): void {
   // Info about optional QRMapper
   if (!config.qrMapper.apiKey) {
     console.info('Info: QRMapper not configured. Set QRMAPPER_API_KEY to enable QR code generation.');
+  }
+
+  // Info about optional Google TTS
+  if (!config.googleTts.credentialsJson) {
+    console.info('Info: Google Cloud TTS not configured. Set GOOGLE_CREDENTIALS_JSON for high-quality TTS.');
   }
 }

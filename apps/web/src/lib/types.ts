@@ -5,7 +5,7 @@ export type ServerMessage =
   | { type: 'room_created'; roomId: string; slug: string; name: string; direction: TranslationDirection }
   | { type: 'room_info'; slug: string; name: string; isActive: boolean; direction: TranslationDirection }
   | { type: 'joined'; roomId: string; role: 'broadcaster' | 'listener'; listenerCount: number; roomName?: string; direction?: TranslationDirection }
-  | { type: 'transcript'; source: string; translated: string; isFinal: boolean; timestamp: number }
+  | { type: 'transcript'; source: string; translated: string; isFinal: boolean; timestamp: number; audio?: string }
   | { type: 'listener_count'; count: number }
   | { type: 'broadcast_started' }
   | { type: 'broadcast_ended' }

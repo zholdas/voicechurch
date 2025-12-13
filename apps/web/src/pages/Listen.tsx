@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useTranscript } from '../hooks/useTranscript';
 import { useSpeechSynthesis } from '../hooks/useSpeechSynthesis';
+import { useAudioPlayback } from '../hooks/useAudioPlayback';
 import ConnectionStatus from '../components/ConnectionStatus';
 import TranscriptDisplay from '../components/TranscriptDisplay';
 import FontControls from '../components/FontControls';
@@ -17,7 +18,29 @@ export default function Listen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { entries, addTranscript, clearTranscript } = useTranscript();
-  const { isEnabled: ttsEnabled, toggle: toggleTts, speak } = useSpeechSynthesis();
+  const { isEnabled: browserTtsEnabled, toggle: toggleBrowserTts, speak: speakBrowser } = useSpeechSynthesis();
+  const { isEnabled: serverTtsEnabled, toggle: toggleServerTts, play: playServerAudio, stop: stopServerAudio } = useAudioPlayback();
+
+  // Combined TTS state - prefer server TTS when audio is available
+  const ttsEnabled = serverTtsEnabled || browserTtsEnabled;
+
+  // Toggle both TTS systems together
+  const toggleTts = useCallback(() => {
+    if (ttsEnabled) {
+      // Turn off both
+      if (serverTtsEnabled) {
+        toggleServerTts();
+        stopServerAudio();
+      }
+      if (browserTtsEnabled) {
+        toggleBrowserTts();
+      }
+    } else {
+      // Turn on both (server TTS will be used if audio is available, browser as fallback)
+      toggleServerTts();
+      toggleBrowserTts();
+    }
+  }, [ttsEnabled, serverTtsEnabled, browserTtsEnabled, toggleServerTts, toggleBrowserTts, stopServerAudio]);
 
   const handleMessage = useCallback(
     (message: ServerMessage) => {
@@ -42,9 +65,15 @@ export default function Listen() {
             message.isFinal,
             message.timestamp
           );
-          // Speak final transcripts
+          // Play audio for final transcripts
           if (message.isFinal && ttsEnabled) {
-            speak(message.translated);
+            if (message.audio && serverTtsEnabled) {
+              // Server-generated TTS (Google Cloud TTS)
+              playServerAudio(message.audio);
+            } else if (browserTtsEnabled) {
+              // Fallback to browser TTS
+              speakBrowser(message.translated);
+            }
           }
           break;
         case 'listener_count':
@@ -55,7 +84,7 @@ export default function Listen() {
           break;
       }
     },
-    [addTranscript, clearTranscript, speak, ttsEnabled]
+    [addTranscript, clearTranscript, speakBrowser, playServerAudio, ttsEnabled, serverTtsEnabled, browserTtsEnabled]
   );
 
   const { status, connect, send, isConnected } = useWebSocket({

@@ -2,6 +2,7 @@ import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import { config } from '../config.js';
 import { broadcastToListeners, setDeepgramConnection, getRoom } from '../websocket/rooms.js';
 import { translate, translateWithDebounce, cancelPendingTranslation } from './translation.js';
+import { synthesizeSpeech, isGoogleTtsConfigured } from './google-tts.js';
 import type { ServerMessage } from '../websocket/types.js';
 
 export function createDeepgramConnection(roomId: string): void {
@@ -49,12 +50,26 @@ export function createDeepgramConnection(roomId: string): void {
       cancelPendingTranslation(roomId);
       const translated = await translate(transcript, direction);
 
+      // Generate TTS audio if Google TTS is configured
+      let audioBase64: string | undefined;
+      if (isGoogleTtsConfigured()) {
+        try {
+          const audioBuffer = await synthesizeSpeech(translated, direction);
+          if (audioBuffer) {
+            audioBase64 = audioBuffer.toString('base64');
+          }
+        } catch (error) {
+          console.error(`TTS error for room ${roomId}:`, error);
+        }
+      }
+
       const message: ServerMessage = {
         type: 'transcript',
         source: transcript,
         translated,
         isFinal: true,
         timestamp,
+        audio: audioBase64,
       };
 
       broadcastToListeners(roomId, message);
