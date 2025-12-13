@@ -98,7 +98,7 @@ class QRMapperService {
   }
 
   async createQR(targetUrl: string, name: string): Promise<QRCreateResponse> {
-    return this.postRequest<QRCreateResponse>('/qr-create', {
+    return this.postRequest<QRCreateResponse>('/qr_create', {
       name,
       target_url: targetUrl,
       webhook_url: this.webhookUrl,
@@ -120,7 +120,7 @@ class QRMapperService {
       body.name = name;
     }
 
-    return this.postRequest<QRUpdateResponse>('/qr-update', body);
+    return this.postRequest<QRUpdateResponse>('/qr_update', body);
   }
 
   async deleteQR(qrId: string): Promise<QRDeleteResponse> {

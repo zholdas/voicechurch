@@ -29,7 +29,7 @@ export const config = {
 
   qrMapper: {
     apiKey: process.env.QRMAPPER_API_KEY || '',
-    baseUrl: 'https://qrmapper.com/api/1.1/wf',
+    baseUrl: 'https://app.qrmapper.com/api/1.1/wf',
     webhookUrl: process.env.QRMAPPER_WEBHOOK_URL || '',
   },
 };
