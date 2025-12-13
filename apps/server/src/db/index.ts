@@ -1,9 +1,18 @@
 import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import crypto from 'crypto';
+import { mkdirSync, existsSync } from 'fs';
+import { dirname } from 'path';
 import type { TranslationDirection } from '../websocket/types.js';
 
 // Database path - use environment variable or default
 const dbPath = process.env.DATABASE_PATH || './data/voicechurch.db';
+
+// Ensure directory exists
+const dbDir = dirname(dbPath);
+if (!existsSync(dbDir)) {
+  mkdirSync(dbDir, { recursive: true });
+  console.log(`Created database directory: ${dbDir}`);
+}
 
 // Initialize database
 const db: DatabaseType = new Database(dbPath);
