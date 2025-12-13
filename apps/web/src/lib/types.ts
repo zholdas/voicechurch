@@ -28,3 +28,32 @@ export interface TranscriptEntry {
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+// User from auth
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  picture: string | null;
+}
+
+// Room info from API
+export interface RoomInfo {
+  id: string;
+  slug: string;
+  name: string;
+  direction: TranslationDirection;
+  isPublic: boolean;
+  isActive: boolean;
+  listenerCount: number;
+}
+
+// Public room (without isPublic field since they're all public)
+export interface PublicRoomInfo {
+  id: string;
+  slug: string;
+  name: string;
+  direction: TranslationDirection;
+  isActive: boolean;
+  listenerCount: number;
+}

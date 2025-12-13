@@ -29,3 +29,7 @@ npm-debug.log*
 
 # Testing
 coverage/
+
+# Database
+*.db
+data/

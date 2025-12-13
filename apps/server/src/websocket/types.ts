@@ -26,6 +26,8 @@ export interface Room {
   slug: string;
   name: string;
   isPersistent: boolean;
+  isPublic: boolean;
+  ownerId: string | null;
   translationDirection: TranslationDirection;
   createdAt: Date;
   broadcaster: WebSocket | null;

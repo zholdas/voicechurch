@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import type { Room, ExtendedWebSocket, ServerMessage, TranslationDirection } from './types.js';
+import * as db from '../db/index.js';
 
-// In-memory room storage
+// In-memory room storage (includes both persistent and temporary rooms)
 const rooms = new Map<string, Room>();
 
 // Generate short unique ID
@@ -14,6 +15,29 @@ function validateSlug(slug: string): boolean {
   return /^[a-z0-9-]+$/.test(slug) && slug.length >= 3 && slug.length <= 50;
 }
 
+// Initialize rooms from database on startup
+export function initRooms(): void {
+  const persistentRooms = db.getAllRooms();
+  for (const dbRoom of persistentRooms) {
+    const room: Room = {
+      id: dbRoom.id,
+      slug: dbRoom.slug,
+      name: dbRoom.name,
+      isPersistent: true,
+      isPublic: dbRoom.isPublic,
+      ownerId: dbRoom.ownerId,
+      translationDirection: dbRoom.direction,
+      createdAt: dbRoom.createdAt,
+      broadcaster: null,
+      listeners: new Set(),
+      deepgramConnection: null,
+      isActive: false,
+    };
+    rooms.set(room.id, room);
+  }
+  console.log(`Loaded ${persistentRooms.length} persistent rooms from database`);
+}
+
 export function getRoomBySlug(slug: string): Room | undefined {
   for (const room of rooms.values()) {
     if (room.slug === slug) return room;
@@ -21,6 +45,7 @@ export function getRoomBySlug(slug: string): Room | undefined {
   return undefined;
 }
 
+// Create a temporary room (for WebSocket-based creation without auth)
 export function createRoom(options?: { name?: string; slug?: string; direction?: TranslationDirection }): Room {
   const slug = options?.slug || generateRoomId();
 
@@ -39,7 +64,9 @@ export function createRoom(options?: { name?: string; slug?: string; direction?:
     id: roomId,
     slug,
     name: options?.name || `Room ${slug}`,
-    isPersistent: !!options?.slug,
+    isPersistent: false, // WebSocket-created rooms are temporary
+    isPublic: false,
+    ownerId: null,
     translationDirection: options?.direction || 'es-to-en',
     createdAt: new Date(),
     broadcaster: null,
@@ -49,9 +76,106 @@ export function createRoom(options?: { name?: string; slug?: string; direction?:
   };
 
   rooms.set(roomId, room);
-  console.log(`Room created: ${roomId} (slug: ${slug}, direction: ${room.translationDirection}, persistent: ${room.isPersistent})`);
+  console.log(`Temporary room created: ${roomId} (slug: ${slug}, direction: ${room.translationDirection})`);
 
   return room;
+}
+
+// Create a persistent room (for API-based creation with auth)
+export function createPersistentRoom(options: {
+  name: string;
+  slug: string;
+  direction: TranslationDirection;
+  isPublic: boolean;
+  ownerId: string;
+}): Room {
+  // Validate slug
+  if (!validateSlug(options.slug)) {
+    throw new Error('Invalid room URL. Use lowercase letters, numbers, and hyphens (3-50 chars)');
+  }
+
+  // Check if slug already exists
+  if (getRoomBySlug(options.slug)) {
+    throw new Error('Room with this URL already exists');
+  }
+
+  // Save to database
+  const dbRoom = db.createRoom({
+    slug: options.slug,
+    name: options.name,
+    direction: options.direction,
+    isPublic: options.isPublic,
+    ownerId: options.ownerId,
+  });
+
+  // Create in-memory room
+  const room: Room = {
+    id: dbRoom.id,
+    slug: dbRoom.slug,
+    name: dbRoom.name,
+    isPersistent: true,
+    isPublic: dbRoom.isPublic,
+    ownerId: dbRoom.ownerId,
+    translationDirection: dbRoom.direction,
+    createdAt: dbRoom.createdAt,
+    broadcaster: null,
+    listeners: new Set(),
+    deepgramConnection: null,
+    isActive: false,
+  };
+
+  rooms.set(room.id, room);
+  console.log(`Persistent room created: ${room.id} (slug: ${room.slug}, public: ${room.isPublic})`);
+
+  return room;
+}
+
+// Update a persistent room
+export function updatePersistentRoom(
+  roomId: string,
+  ownerId: string,
+  updates: { name?: string; direction?: TranslationDirection; isPublic?: boolean }
+): Room | null {
+  const room = rooms.get(roomId);
+  if (!room || !room.isPersistent || room.ownerId !== ownerId) {
+    return null;
+  }
+
+  // Update in database
+  const dbRoom = db.updateRoom(roomId, updates);
+  if (!dbRoom) return null;
+
+  // Update in-memory
+  if (updates.name !== undefined) room.name = updates.name;
+  if (updates.direction !== undefined) room.translationDirection = updates.direction;
+  if (updates.isPublic !== undefined) room.isPublic = updates.isPublic;
+
+  return room;
+}
+
+// Delete a persistent room
+export function deletePersistentRoom(roomId: string, ownerId: string): boolean {
+  const room = rooms.get(roomId);
+  if (!room || !room.isPersistent || room.ownerId !== ownerId) {
+    return false;
+  }
+
+  // Close connections
+  if (room.deepgramConnection) {
+    (room.deepgramConnection as { close: () => void }).close();
+  }
+
+  // Notify listeners
+  broadcastToListeners(roomId, { type: 'broadcast_ended' });
+
+  // Delete from database
+  db.deleteRoom(roomId);
+
+  // Delete from memory
+  rooms.delete(roomId);
+  console.log(`Persistent room deleted: ${roomId}`);
+
+  return true;
 }
 
 export function getRoom(roomId: string): Room | undefined {
@@ -201,4 +325,72 @@ export function getRoomCount(): number {
 
 export function getActiveRoomIds(): string[] {
   return Array.from(rooms.keys());
+}
+
+// Get public rooms with current status (for API)
+export function getPublicRoomsWithStatus(): Array<{
+  id: string;
+  slug: string;
+  name: string;
+  direction: TranslationDirection;
+  isActive: boolean;
+  listenerCount: number;
+}> {
+  return Array.from(rooms.values())
+    .filter(r => r.isPersistent && r.isPublic)
+    .map(r => ({
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      direction: r.translationDirection,
+      isActive: r.isActive,
+      listenerCount: r.listeners.size,
+    }));
+}
+
+// Get user's rooms with current status (for API)
+export function getUserRoomsWithStatus(ownerId: string): Array<{
+  id: string;
+  slug: string;
+  name: string;
+  direction: TranslationDirection;
+  isPublic: boolean;
+  isActive: boolean;
+  listenerCount: number;
+}> {
+  return Array.from(rooms.values())
+    .filter(r => r.isPersistent && r.ownerId === ownerId)
+    .map(r => ({
+      id: r.id,
+      slug: r.slug,
+      name: r.name,
+      direction: r.translationDirection,
+      isPublic: r.isPublic,
+      isActive: r.isActive,
+      listenerCount: r.listeners.size,
+    }));
+}
+
+// Get room with status (for API)
+export function getRoomWithStatus(slugOrId: string): {
+  id: string;
+  slug: string;
+  name: string;
+  direction: TranslationDirection;
+  isPublic: boolean;
+  isActive: boolean;
+  listenerCount: number;
+} | null {
+  const room = getRoom(slugOrId) || getRoomBySlug(slugOrId);
+  if (!room) return null;
+
+  return {
+    id: room.id,
+    slug: room.slug,
+    name: room.name,
+    direction: room.translationDirection,
+    isPublic: room.isPublic,
+    isActive: room.isActive,
+    listenerCount: room.listeners.size,
+  };
 }

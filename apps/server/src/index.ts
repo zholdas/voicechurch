@@ -1,10 +1,14 @@
 import express from 'express';
 import cors from 'cors';
+import session from 'express-session';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { config, validateConfig } from './config.js';
 import { handleConnection, setupHeartbeat } from './websocket/handler.js';
-import { getRoomCount, getActiveRoomIds } from './websocket/rooms.js';
+import { getRoomCount, getActiveRoomIds, initRooms, getPublicRoomsWithStatus } from './websocket/rooms.js';
+import { setupPassport, passport } from './auth/passport.js';
+import { authRouter } from './auth/routes.js';
+import { roomsRouter } from './api/rooms.js';
 import type { ExtendedWebSocket } from './websocket/types.js';
 
 // Log startup
@@ -15,7 +19,13 @@ console.log('NODE_ENV:', process.env.NODE_ENV);
 // Validate config on startup
 validateConfig();
 
+// Initialize rooms from database
+initRooms();
+
 const app = express();
+
+// Trust proxy for secure cookies behind reverse proxy
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({
@@ -23,6 +33,30 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+// Session middleware
+app.use(session({
+  secret: config.session.secret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: config.nodeEnv === 'production',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
+  },
+}));
+
+// Passport middleware
+setupPassport();
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Auth routes
+app.use('/auth', authRouter);
+
+// API routes
+app.use('/api/rooms', roomsRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

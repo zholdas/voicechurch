@@ -1,19 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { TranslationDirection } from '../lib/types';
+import { useAuth } from '../hooks/useAuth';
+import { roomsApi } from '../lib/api';
+import type { TranslationDirection, PublicRoomInfo } from '../lib/types';
 
 export default function Home() {
   const navigate = useNavigate();
-  const [roomName, setRoomName] = useState('');
-  const [roomSlug, setRoomSlug] = useState('');
-  const [direction, setDirection] = useState<TranslationDirection>('es-to-en');
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const { isAuthenticated, user } = useAuth();
+  const [publicRooms, setPublicRooms] = useState<PublicRoomInfo[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(true);
 
-  const handleCreatePermanentRoom = () => {
-    if (!roomName.trim()) return;
-    const slug = roomSlug.trim() || roomName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    navigate(`/broadcast?name=${encodeURIComponent(roomName)}&slug=${encodeURIComponent(slug)}&direction=${direction}`);
-  };
+  // Load public rooms
+  useEffect(() => {
+    roomsApi
+      .getPublicRooms()
+      .then(setPublicRooms)
+      .catch(console.error)
+      .finally(() => setLoadingRooms(false));
+  }, []);
 
   const handleQuickBroadcast = (dir: TranslationDirection) => {
     navigate(`/broadcast?direction=${dir}`);
@@ -21,7 +25,42 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <div className="max-w-4xl mx-auto px-4 py-16">
+      {/* Navigation */}
+      <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <span className="text-xl font-bold text-blue-600">LinguaSpire</span>
+          <div className="flex items-center gap-4">
+            {isAuthenticated ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="text-gray-600 hover:text-gray-900"
+                >
+                  Dashboard
+                </Link>
+                <div className="flex items-center gap-2">
+                  {user?.picture && (
+                    <img
+                      src={user.picture}
+                      alt={user.name}
+                      className="w-8 h-8 rounded-full"
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-6xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
@@ -41,12 +80,56 @@ export default function Home() {
               </svg>
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">VoiceChurch</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">LinguaSpire</h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Real-time speech translation for church services. Break language
             barriers and unite your congregation.
           </p>
         </div>
+
+        {/* Public Rooms */}
+        {!loadingRooms && publicRooms.length > 0 && (
+          <div className="mb-16">
+            <h2 className="text-2xl font-semibold text-gray-900 text-center mb-8">
+              Active Rooms
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {publicRooms.map((room) => (
+                <Link
+                  key={room.id}
+                  to={`/room/${room.slug}`}
+                  className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="font-semibold text-lg text-gray-900">
+                      {room.name}
+                    </h3>
+                    {room.isActive && (
+                      <span className="flex items-center gap-1 text-green-600 text-sm">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Live
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span
+                      className={`px-2 py-0.5 rounded-full ${
+                        room.direction === 'es-to-en'
+                          ? 'bg-blue-50 text-blue-700'
+                          : 'bg-green-50 text-green-700'
+                      }`}
+                    >
+                      {room.direction === 'es-to-en'
+                        ? 'ES → EN'
+                        : 'EN → ES'}
+                    </span>
+                    <span>{room.listenerCount} listeners</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* How it works */}
         <div className="mb-16">
@@ -60,7 +143,7 @@ export default function Home() {
               </div>
               <h3 className="font-semibold mb-2">Start Broadcasting</h3>
               <p className="text-gray-600 text-sm">
-                The speaker starts a broadcast and speaks in Spanish
+                The speaker starts a broadcast and speaks in their language
               </p>
             </div>
             <div className="text-center">
@@ -78,15 +161,17 @@ export default function Home() {
               </div>
               <h3 className="font-semibold mb-2">Listen & Read</h3>
               <p className="text-gray-600 text-sm">
-                Visitors see live English translation on their devices
+                Visitors see live translation on their devices
               </p>
             </div>
           </div>
         </div>
 
         {/* CTA */}
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">Quick Broadcast</h3>
+        <div className="text-center mb-16">
+          <h3 className="text-lg font-medium text-gray-700 mb-4">
+            Quick Broadcast (Temporary Room)
+          </h3>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => handleQuickBroadcast('es-to-en')}
@@ -131,91 +216,28 @@ export default function Home() {
             Start a temporary room with a random URL
           </p>
 
-          {/* Create Permanent Room */}
-          <div className="mt-8">
-            {!showCreateForm ? (
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+          {/* Sign in CTA */}
+          {!isAuthenticated && (
+            <div className="mt-8 p-6 bg-blue-50 rounded-xl max-w-md mx-auto">
+              <p className="text-gray-700 mb-3">
+                Want to create permanent rooms with custom URLs?
+              </p>
+              <Link
+                to="/login"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Or create a permanent room with custom URL
-              </button>
-            ) : (
-              <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg p-6 text-left">
-                <h3 className="font-semibold text-gray-900 mb-4">Create Permanent Room</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Room Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={roomName}
-                      onChange={(e) => setRoomName(e.target.value)}
-                      placeholder="e.g., Sunday Service"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Custom URL (optional)
-                    </label>
-                    <div className="flex items-center">
-                      <span className="text-gray-500 text-sm mr-1">/room/</span>
-                      <input
-                        type="text"
-                        value={roomSlug}
-                        onChange={(e) => setRoomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                        placeholder="sunday-service"
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Use lowercase letters, numbers, and hyphens
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Translation Direction
-                    </label>
-                    <select
-                      value={direction}
-                      onChange={(e) => setDirection(e.target.value as TranslationDirection)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="es-to-en">Spanish → English</option>
-                      <option value="en-to-es">English → Spanish</option>
-                    </select>
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleCreatePermanentRoom}
-                      disabled={!roomName.trim()}
-                      className="flex-1 px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Create Room
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowCreateForm(false);
-                        setRoomName('');
-                        setRoomSlug('');
-                      }}
-                      className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+                Sign in to manage rooms
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Features */}
-        <div className="mt-20 grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-2">Real-time Translation</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">
+              Real-time Translation
+            </h3>
             <p className="text-gray-600 text-sm">
               See translated text appear as the speaker talks, with minimal delay
             </p>
@@ -223,7 +245,8 @@ export default function Home() {
           <div className="bg-white p-6 rounded-xl shadow-sm border">
             <h3 className="font-semibold text-gray-900 mb-2">Text-to-Speech</h3>
             <p className="text-gray-600 text-sm">
-              Optional audio playback of translated text using browser speech synthesis
+              Optional audio playback of translated text using browser speech
+              synthesis
             </p>
           </div>
           <div className="bg-white p-6 rounded-xl shadow-sm border">
@@ -238,6 +261,11 @@ export default function Home() {
               Adjustable font size for comfortable reading on any device
             </p>
           </div>
+        </div>
+
+        {/* Have a link? */}
+        <div className="mt-12 text-center text-gray-500 text-sm">
+          Have a room link? Enter it directly in your browser's address bar.
         </div>
       </div>
     </div>

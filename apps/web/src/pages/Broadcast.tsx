@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import ConnectionStatus from '../components/ConnectionStatus';
@@ -8,17 +8,23 @@ import AudioCapture from '../components/AudioCapture';
 import type { ServerMessage, TranslationDirection } from '../lib/types';
 
 export default function Broadcast() {
+  const { roomId: urlRoomId } = useParams<{ roomId: string }>();
   const [searchParams] = useSearchParams();
   const paramName = searchParams.get('name');
   const paramSlug = searchParams.get('slug');
   const paramDirection = searchParams.get('direction') as TranslationDirection | null;
 
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [roomSlug, setRoomSlug] = useState<string | null>(null);
+  // If we have a room ID from URL (existing room), join it
+  // Otherwise create a new room
+  const isExistingRoom = !!urlRoomId;
+
+  const [roomId, setRoomId] = useState<string | null>(urlRoomId || null);
+  const [roomSlug, setRoomSlug] = useState<string | null>(urlRoomId || null);
   const [roomName, setRoomName] = useState<string | null>(paramName);
   const [direction, setDirection] = useState<TranslationDirection>(paramDirection || 'es-to-en');
   const [listenerCount, setListenerCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [roomReady, setRoomReady] = useState(false);
 
   const handleMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
@@ -27,14 +33,18 @@ export default function Broadcast() {
         setRoomSlug(message.slug);
         setRoomName(message.name);
         setDirection(message.direction);
+        setRoomReady(true);
         break;
       case 'joined':
+        setRoomId(message.roomId);
         if (message.roomName) {
           setRoomName(message.roomName);
         }
         if (message.direction) {
           setDirection(message.direction);
         }
+        setListenerCount(message.listenerCount);
+        setRoomReady(true);
         break;
       case 'listener_count':
         setListenerCount(message.count);
@@ -60,22 +70,32 @@ export default function Broadcast() {
     onAudioData: handleAudioData,
   });
 
-  // Connect and create room on mount
+  // Connect on mount
   useEffect(() => {
     connect();
   }, [connect]);
 
-  // Create room when connected
+  // Create or join room when connected
   useEffect(() => {
-    if (isConnected && !roomId) {
-      send({
-        type: 'create_room',
-        name: paramName || undefined,
-        slug: paramSlug || undefined,
-        direction: paramDirection || 'es-to-en',
-      });
+    if (isConnected && !roomReady) {
+      if (isExistingRoom && urlRoomId) {
+        // Join existing room as broadcaster
+        send({
+          type: 'join_room',
+          roomId: urlRoomId,
+          role: 'broadcaster',
+        });
+      } else {
+        // Create new temporary room
+        send({
+          type: 'create_room',
+          name: paramName || undefined,
+          slug: paramSlug || undefined,
+          direction: paramDirection || 'es-to-en',
+        });
+      }
     }
-  }, [isConnected, roomId, send, paramName, paramSlug, paramDirection]);
+  }, [isConnected, roomReady, isExistingRoom, urlRoomId, send, paramName, paramSlug, paramDirection]);
 
   const handleStartBroadcast = () => {
     startRecording();
@@ -92,7 +112,7 @@ export default function Broadcast() {
       <header className="bg-white shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="text-xl font-bold text-blue-600">
-            VoiceChurch
+            LinguaSpire
           </Link>
           <ConnectionStatus status={status} />
         </div>
@@ -103,6 +123,14 @@ export default function Broadcast() {
         {errorMessage && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {errorMessage}
+            {errorMessage.includes('already has a broadcaster') && (
+              <p className="mt-2 text-sm">
+                Someone else is already broadcasting in this room.{' '}
+                <Link to={`/room/${roomSlug || urlRoomId}`} className="underline">
+                  Join as listener instead
+                </Link>
+              </p>
+            )}
           </div>
         )}
 
