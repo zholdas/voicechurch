@@ -110,7 +110,7 @@ export default function Dashboard() {
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="text-xl font-bold text-blue-600">
-            LinguaSpire
+            WordBeacon
           </Link>
 
           <div className="flex items-center gap-4">

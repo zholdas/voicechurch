@@ -13,7 +13,7 @@ import { webhooksRouter } from './api/webhooks.js';
 import type { ExtendedWebSocket } from './websocket/types.js';
 
 // Log startup
-console.log('Starting VoiceChurch server...');
+console.log('Starting WordBeacon server...');
 console.log('PORT:', process.env.PORT);
 console.log('NODE_ENV:', process.env.NODE_ENV);
 
@@ -110,7 +110,7 @@ process.on('SIGTERM', () => {
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════╗
-║                    VoiceChurch Server                     ║
+║                    WordBeacon Server                      ║
 ╠═══════════════════════════════════════════════════════════╣
 ║  HTTP:      http://localhost:${config.port}                        ║
 ║  WebSocket: ws://localhost:${config.port}                          ║

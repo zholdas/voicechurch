@@ -110,7 +110,7 @@ export default function Listen() {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link to="/" className="text-lg font-bold text-blue-600">
-              VoiceChurch
+              WordBeacon
             </Link>
             {roomName && (
               <span className="text-gray-400">|</span>

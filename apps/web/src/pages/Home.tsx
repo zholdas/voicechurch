@@ -28,7 +28,7 @@ export default function Home() {
       {/* Navigation */}
       <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <span className="text-xl font-bold text-blue-600">LinguaSpire</span>
+          <span className="text-xl font-bold text-blue-600">WordBeacon</span>
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
               <>
@@ -80,7 +80,7 @@ export default function Home() {
               </svg>
             </div>
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">LinguaSpire</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">WordBeacon</h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Real-time speech translation for church services. Break language
             barriers and unite your congregation.
