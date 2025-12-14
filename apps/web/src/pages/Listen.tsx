@@ -9,13 +9,53 @@ import TranscriptDisplay from '../components/TranscriptDisplay';
 import FontControls from '../components/FontControls';
 import type { ServerMessage } from '../lib/types';
 
+// Calculate responsive base font size based on screen
+function getResponsiveFontSize(): number {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+
+  // For TV/large screens (>1920px width or >1080px height)
+  if (width > 1920 || height > 1080) {
+    return 32;
+  }
+  // For desktop/laptop
+  if (width > 1024) {
+    return 24;
+  }
+  // For tablet
+  if (width > 768) {
+    return 22;
+  }
+  // For mobile
+  return 20;
+}
+
 export default function Listen() {
   const { roomId } = useParams<{ roomId: string }>();
   const [roomName, setRoomName] = useState<string | null>(null);
   const [broadcastActive, setBroadcastActive] = useState(false);
   const [listenerCount, setListenerCount] = useState(0);
-  const [fontSize, setFontSize] = useState(20);
+  const [fontSize, setFontSize] = useState(() => getResponsiveFontSize());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Update font size on resize
+  useEffect(() => {
+    const handleResize = () => {
+      // Only update if user hasn't manually changed font size
+      // (we detect this by checking if current size matches any responsive breakpoint)
+      const responsiveSize = getResponsiveFontSize();
+      setFontSize(prev => {
+        // If previous size was a responsive size, update it
+        if ([20, 22, 24, 32].includes(prev)) {
+          return responsiveSize;
+        }
+        return prev; // Keep user's manual choice
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { entries, addTranscript, clearTranscript } = useTranscript();
   const { isEnabled: browserTtsEnabled, toggle: toggleBrowserTts, speak: speakBrowser } = useSpeechSynthesis();
@@ -104,7 +144,7 @@ export default function Listen() {
   }, [isConnected, roomId, send]);
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="listen-container bg-gray-100 flex flex-col">
       {/* Header */}
       <header className="bg-white shadow-sm flex-shrink-0">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
