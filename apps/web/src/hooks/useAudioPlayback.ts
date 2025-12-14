@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 
 export function useAudioPlayback() {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -7,6 +7,10 @@ export function useAudioPlayback() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const playingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isProcessingRef = useRef(false);
+
+  // Use ref for playNext to avoid stale closure issues
+  const playNextRef = useRef<() => void>(() => {});
 
   const clearCurrentAudio = useCallback(() => {
     if (timeoutRef.current) {
@@ -18,11 +22,20 @@ export function useAudioPlayback() {
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
       audioRef.current.oncanplaythrough = null;
+      audioRef.current.onloadeddata = null;
+      // Release the audio element
+      audioRef.current.src = '';
       audioRef.current = null;
     }
+    isProcessingRef.current = false;
   }, []);
 
   const playNext = useCallback(() => {
+    // Prevent multiple simultaneous playNext calls
+    if (isProcessingRef.current) {
+      return;
+    }
+
     clearCurrentAudio();
 
     if (queueRef.current.length === 0) {
@@ -31,38 +44,70 @@ export function useAudioPlayback() {
       return;
     }
 
+    isProcessingRef.current = true;
     const base64Audio = queueRef.current.shift()!;
-    const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+    const audio = new Audio();
     audioRef.current = audio;
 
-    // Timeout in case audio gets stuck (30 seconds max)
+    // Timeout in case audio gets stuck (15 seconds max per audio)
     timeoutRef.current = setTimeout(() => {
       console.warn('Audio playback timeout, skipping to next');
-      playNext();
-    }, 30000);
+      isProcessingRef.current = false;
+      playNextRef.current();
+    }, 15000);
 
-    audio.onended = () => {
-      playNext();
+    const handleEnded = () => {
+      isProcessingRef.current = false;
+      playNextRef.current();
     };
 
-    audio.onerror = (e) => {
-      console.error('Audio playback error:', e);
-      playNext();
+    const handleError = () => {
+      console.error('Audio playback error');
+      isProcessingRef.current = false;
+      playNextRef.current();
     };
 
-    // Wait for audio to load before playing
-    audio.oncanplaythrough = () => {
+    const handleCanPlay = () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      // Set a new timeout for actual playback (based on duration + buffer)
+      const duration = audio.duration || 10;
+      timeoutRef.current = setTimeout(() => {
+        console.warn('Audio playback exceeded duration, skipping');
+        isProcessingRef.current = false;
+        playNextRef.current();
+      }, (duration + 5) * 1000);
+
       playingRef.current = true;
       setIsPlaying(true);
       audio.play().catch((error) => {
         console.error('Failed to play audio:', error);
-        playNext();
+        isProcessingRef.current = false;
+        playNextRef.current();
       });
     };
 
-    // Start loading
+    audio.onended = handleEnded;
+    audio.onerror = handleError;
+    // Use both events for better browser compatibility
+    audio.oncanplaythrough = handleCanPlay;
+    audio.onloadeddata = () => {
+      // Fallback if oncanplaythrough doesn't fire
+      if (audio.readyState >= 3 && !playingRef.current) {
+        handleCanPlay();
+      }
+    };
+
+    // Set source and start loading
+    audio.src = `data:audio/mp3;base64,${base64Audio}`;
     audio.load();
   }, [clearCurrentAudio]);
+
+  // Keep playNextRef updated
+  useEffect(() => {
+    playNextRef.current = playNext;
+  }, [playNext]);
 
   const play = useCallback((base64Audio: string) => {
     if (!isEnabled) return;
