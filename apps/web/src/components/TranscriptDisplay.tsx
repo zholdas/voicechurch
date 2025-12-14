@@ -1,4 +1,4 @@
-import { useRef, useLayoutEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import type { TranscriptEntry } from '../lib/types';
 
 interface TranscriptDisplayProps {
@@ -8,15 +8,31 @@ interface TranscriptDisplayProps {
 
 export default function TranscriptDisplay({ entries, fontSize }: TranscriptDisplayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScrollRef = useRef(true);
+
+  // Track if user has scrolled up (disable auto-scroll)
+  const handleScroll = () => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Check if user is near bottom (within 100px)
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    shouldAutoScrollRef.current = isNearBottom;
+  };
 
   // Auto-scroll to bottom when new entries arrive
-  // Use useLayoutEffect for synchronous scroll before paint
-  useLayoutEffect(() => {
+  useEffect(() => {
+    if (!shouldAutoScrollRef.current) return;
+
     const container = containerRef.current;
-    if (container) {
-      // Instant scroll to bottom (no smooth - causes iOS issues)
-      container.scrollTop = container.scrollHeight;
-    }
+    if (!container) return;
+
+    // Use requestAnimationFrame for iOS Safari compatibility
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        container.scrollTop = container.scrollHeight;
+      });
+    });
   }, [entries]);
 
   if (entries.length === 0) {
@@ -30,6 +46,7 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   return (
     <div
       ref={containerRef}
+      onScroll={handleScroll}
       className="flex-1 overflow-y-auto transcript-scroll p-4 bg-white rounded-lg shadow-inner"
     >
       <div
