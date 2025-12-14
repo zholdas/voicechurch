@@ -95,10 +95,10 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
     <div
       ref={containerRef}
       onScroll={handleScroll}
-      className="flex-1 overflow-y-auto overscroll-contain min-h-0 transcript-scroll transcript-container p-4 sm:p-6 lg:p-8 bg-white rounded-lg shadow-inner"
+      className="flex-1 overflow-y-auto overscroll-contain min-h-0 transcript-scroll transcript-container p-4 sm:p-6 lg:p-2 xl:p-0 bg-white rounded-lg shadow-inner"
     >
       <div
-        className="max-w-4xl mx-auto"
+        className="lg:max-w-none mx-auto"
         style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
       >
         {entries.map((entry) => (

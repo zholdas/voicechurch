@@ -193,7 +193,7 @@ export default function Listen() {
       )}
 
       {/* Main content */}
-      <main className="flex-1 flex flex-col w-full px-4 py-4 min-h-0">
+      <main className="flex-1 flex flex-col w-full px-4 lg:px-2 xl:px-0 py-4 min-h-0">
         <TranscriptDisplay entries={entries} fontSize={fontSize} />
       </main>
 
