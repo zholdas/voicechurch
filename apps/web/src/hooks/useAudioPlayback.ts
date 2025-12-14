@@ -1,18 +1,118 @@
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState } from 'react';
 
 export function useAudioPlayback() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isEnabled, setIsEnabled] = useState(false);
   const queueRef = useRef<string[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const playingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isProcessingRef = useRef(false);
+  const isActiveRef = useRef(false); // true when we're in the middle of playing the queue
 
-  // Use ref for playNext to avoid stale closure issues
-  const playNextRef = useRef<() => void>(() => {});
+  const scheduleNext = useCallback(() => {
+    // Small delay to ensure clean state between audio elements
+    setTimeout(() => {
+      processQueue();
+    }, 50);
+  }, []);
 
-  const clearCurrentAudio = useCallback(() => {
+  const processQueue = useCallback(() => {
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    // Clean up previous audio
+    if (audioRef.current) {
+      const oldAudio = audioRef.current;
+      oldAudio.pause();
+      oldAudio.onended = null;
+      oldAudio.onerror = null;
+      oldAudio.oncanplaythrough = null;
+      oldAudio.src = '';
+      audioRef.current = null;
+    }
+
+    // Check if queue is empty
+    if (queueRef.current.length === 0) {
+      isActiveRef.current = false;
+      setIsPlaying(false);
+      return;
+    }
+
+    // Get next audio from queue
+    const base64Audio = queueRef.current.shift()!;
+
+    // Create new audio element
+    const audio = new Audio();
+    audioRef.current = audio;
+    let hasStartedPlaying = false;
+
+    // Safety timeout (15 seconds to start playing)
+    timeoutRef.current = setTimeout(() => {
+      console.warn('[TTS] Timeout waiting for audio to load, skipping');
+      scheduleNext();
+    }, 15000);
+
+    audio.onended = () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      scheduleNext();
+    };
+
+    audio.onerror = () => {
+      console.error('[TTS] Audio error');
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      scheduleNext();
+    };
+
+    audio.oncanplaythrough = () => {
+      if (hasStartedPlaying) return; // Prevent double-play
+      hasStartedPlaying = true;
+
+      // Clear loading timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Set playback timeout based on duration
+      const duration = audio.duration || 10;
+      timeoutRef.current = setTimeout(() => {
+        console.warn('[TTS] Audio exceeded duration, skipping');
+        scheduleNext();
+      }, (duration + 3) * 1000);
+
+      setIsPlaying(true);
+      audio.play().catch((error) => {
+        console.error('[TTS] Play failed:', error);
+        scheduleNext();
+      });
+    };
+
+    // Set source and load
+    audio.src = `data:audio/mp3;base64,${base64Audio}`;
+    audio.load();
+  }, [scheduleNext]);
+
+  const play = useCallback((base64Audio: string) => {
+    if (!isEnabled) return;
+
+    queueRef.current.push(base64Audio);
+
+    // Start processing if not already active
+    if (!isActiveRef.current) {
+      isActiveRef.current = true;
+      processQueue();
+    }
+  }, [isEnabled, processQueue]);
+
+  const stop = useCallback(() => {
+    queueRef.current = [];
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -22,110 +122,12 @@ export function useAudioPlayback() {
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
       audioRef.current.oncanplaythrough = null;
-      audioRef.current.onloadeddata = null;
-      // Release the audio element
       audioRef.current.src = '';
       audioRef.current = null;
     }
-    isProcessingRef.current = false;
-  }, []);
-
-  const playNext = useCallback(() => {
-    // Prevent multiple simultaneous playNext calls
-    if (isProcessingRef.current) {
-      return;
-    }
-
-    clearCurrentAudio();
-
-    if (queueRef.current.length === 0) {
-      playingRef.current = false;
-      setIsPlaying(false);
-      return;
-    }
-
-    isProcessingRef.current = true;
-    const base64Audio = queueRef.current.shift()!;
-    const audio = new Audio();
-    audioRef.current = audio;
-
-    // Timeout in case audio gets stuck (15 seconds max per audio)
-    timeoutRef.current = setTimeout(() => {
-      console.warn('Audio playback timeout, skipping to next');
-      isProcessingRef.current = false;
-      playNextRef.current();
-    }, 15000);
-
-    const handleEnded = () => {
-      isProcessingRef.current = false;
-      playNextRef.current();
-    };
-
-    const handleError = () => {
-      console.error('Audio playback error');
-      isProcessingRef.current = false;
-      playNextRef.current();
-    };
-
-    const handleCanPlay = () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      // Set a new timeout for actual playback (based on duration + buffer)
-      const duration = audio.duration || 10;
-      timeoutRef.current = setTimeout(() => {
-        console.warn('Audio playback exceeded duration, skipping');
-        isProcessingRef.current = false;
-        playNextRef.current();
-      }, (duration + 5) * 1000);
-
-      playingRef.current = true;
-      setIsPlaying(true);
-      audio.play().catch((error) => {
-        console.error('Failed to play audio:', error);
-        isProcessingRef.current = false;
-        playNextRef.current();
-      });
-    };
-
-    audio.onended = handleEnded;
-    audio.onerror = handleError;
-    // Use both events for better browser compatibility
-    audio.oncanplaythrough = handleCanPlay;
-    audio.onloadeddata = () => {
-      // Fallback if oncanplaythrough doesn't fire
-      if (audio.readyState >= 3 && !playingRef.current) {
-        handleCanPlay();
-      }
-    };
-
-    // Set source and start loading
-    audio.src = `data:audio/mp3;base64,${base64Audio}`;
-    audio.load();
-  }, [clearCurrentAudio]);
-
-  // Keep playNextRef updated
-  useEffect(() => {
-    playNextRef.current = playNext;
-  }, [playNext]);
-
-  const play = useCallback((base64Audio: string) => {
-    if (!isEnabled) return;
-
-    queueRef.current.push(base64Audio);
-
-    // Start playback if not already playing
-    if (!playingRef.current) {
-      playNext();
-    }
-  }, [isEnabled, playNext]);
-
-  const stop = useCallback(() => {
-    queueRef.current = [];
-    clearCurrentAudio();
-    playingRef.current = false;
+    isActiveRef.current = false;
     setIsPlaying(false);
-  }, [clearCurrentAudio]);
+  }, []);
 
   const toggle = useCallback(() => {
     if (isEnabled) {
