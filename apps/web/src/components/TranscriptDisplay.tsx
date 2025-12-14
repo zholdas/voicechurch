@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useRef, useLayoutEffect } from 'react';
 import type { TranscriptEntry } from '../lib/types';
 
 interface TranscriptDisplayProps {
@@ -7,12 +7,15 @@ interface TranscriptDisplayProps {
 }
 
 export default function TranscriptDisplay({ entries, fontSize }: TranscriptDisplayProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new entries arrive
-  useEffect(() => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  // Use useLayoutEffect for synchronous scroll before paint
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (container) {
+      // Instant scroll to bottom (no smooth - causes iOS issues)
+      container.scrollTop = container.scrollHeight;
     }
   }, [entries]);
 
@@ -25,7 +28,10 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   }
 
   return (
-    <div className="flex-1 overflow-y-auto transcript-scroll p-4 bg-white rounded-lg shadow-inner">
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-y-auto transcript-scroll p-4 bg-white rounded-lg shadow-inner"
+    >
       <div
         className="space-y-2"
         style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
@@ -40,8 +46,6 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
             {entry.translated}{' '}
           </span>
         ))}
-        {/* Invisible element at the bottom for scrollIntoView */}
-        <div ref={bottomRef} />
       </div>
     </div>
   );
