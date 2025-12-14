@@ -99,6 +99,8 @@ export default function Listen() {
           setBroadcastActive(false);
           break;
         case 'transcript':
+          // Если получаем транскрипт, значит трансляция активна
+          setBroadcastActive(true);
           addTranscript(
             message.source,
             message.translated,
