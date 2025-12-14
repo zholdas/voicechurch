@@ -16,8 +16,9 @@ body {
 
 /* Listener page - full height container */
 .listen-container {
-  min-height: 100vh;
-  min-height: 100dvh; /* dynamic viewport height for mobile */
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport height for mobile */
+  overflow: hidden; /* предотвращает двойной скролл */
 }
 
 /* Transcript container - fills available space */
