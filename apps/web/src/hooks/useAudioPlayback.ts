@@ -4,15 +4,17 @@ export function useAudioPlayback() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isEnabled, setIsEnabled] = useState(false);
   const queueRef = useRef<string[]>([]);
+  // Single audio element reused for iOS Safari compatibility
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isActiveRef = useRef(false); // true when we're in the middle of playing the queue
+  const isActiveRef = useRef(false);
 
-  const scheduleNext = useCallback(() => {
-    // Small delay to ensure clean state between audio elements
-    setTimeout(() => {
-      processQueue();
-    }, 50);
+  // Get or create the single audio element
+  const getAudio = useCallback(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+    return audioRef.current;
   }, []);
 
   const processQueue = useCallback(() => {
@@ -20,17 +22,6 @@ export function useAudioPlayback() {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
-    }
-
-    // Clean up previous audio
-    if (audioRef.current) {
-      const oldAudio = audioRef.current;
-      oldAudio.pause();
-      oldAudio.onended = null;
-      oldAudio.onerror = null;
-      oldAudio.oncanplaythrough = null;
-      oldAudio.src = '';
-      audioRef.current = null;
     }
 
     // Check if queue is empty
@@ -43,15 +34,21 @@ export function useAudioPlayback() {
     // Get next audio from queue
     const base64Audio = queueRef.current.shift()!;
 
-    // Create new audio element
-    const audio = new Audio();
-    audioRef.current = audio;
+    // Reuse the same audio element (critical for iOS Safari)
+    const audio = getAudio();
+
+    // Clear previous handlers
+    audio.onended = null;
+    audio.onerror = null;
+    audio.oncanplaythrough = null;
+    audio.onloadeddata = null;
+
     let hasStartedPlaying = false;
 
     // Safety timeout (15 seconds to start playing)
     timeoutRef.current = setTimeout(() => {
       console.warn('[TTS] Timeout waiting for audio to load, skipping');
-      scheduleNext();
+      processQueue();
     }, 15000);
 
     audio.onended = () => {
@@ -59,7 +56,8 @@ export function useAudioPlayback() {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-      scheduleNext();
+      // Small delay before next to ensure clean state
+      setTimeout(() => processQueue(), 100);
     };
 
     audio.onerror = () => {
@@ -68,11 +66,11 @@ export function useAudioPlayback() {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-      scheduleNext();
+      setTimeout(() => processQueue(), 100);
     };
 
-    audio.oncanplaythrough = () => {
-      if (hasStartedPlaying) return; // Prevent double-play
+    const startPlayback = () => {
+      if (hasStartedPlaying) return;
       hasStartedPlaying = true;
 
       // Clear loading timeout
@@ -84,20 +82,32 @@ export function useAudioPlayback() {
       const duration = audio.duration || 10;
       timeoutRef.current = setTimeout(() => {
         console.warn('[TTS] Audio exceeded duration, skipping');
-        scheduleNext();
+        audio.pause();
+        processQueue();
       }, (duration + 3) * 1000);
 
       setIsPlaying(true);
-      audio.play().catch((error) => {
-        console.error('[TTS] Play failed:', error);
-        scheduleNext();
-      });
+      const playPromise = audio.play();
+      if (playPromise) {
+        playPromise.catch((error) => {
+          console.error('[TTS] Play failed:', error);
+          setTimeout(() => processQueue(), 100);
+        });
+      }
+    };
+
+    audio.oncanplaythrough = startPlayback;
+    // Fallback for iOS
+    audio.onloadeddata = () => {
+      if (audio.readyState >= 2) {
+        startPlayback();
+      }
     };
 
     // Set source and load
     audio.src = `data:audio/mp3;base64,${base64Audio}`;
     audio.load();
-  }, [scheduleNext]);
+  }, [getAudio]);
 
   const play = useCallback((base64Audio: string) => {
     if (!isEnabled) return;
@@ -122,8 +132,7 @@ export function useAudioPlayback() {
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
       audioRef.current.oncanplaythrough = null;
-      audioRef.current.src = '';
-      audioRef.current = null;
+      audioRef.current.onloadeddata = null;
     }
     isActiveRef.current = false;
     setIsPlaying(false);
@@ -132,9 +141,21 @@ export function useAudioPlayback() {
   const toggle = useCallback(() => {
     if (isEnabled) {
       stop();
+    } else {
+      // Initialize audio element on user gesture (required for iOS Safari)
+      const audio = getAudio();
+      // Play silent audio to unlock on iOS
+      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAGAAGn9AAAIgAANP8AAABMQWV1AMaYYjHn/EQQA//NAxAAAA0gAM/gAABDAnz8VHf/iB//0TA4PjH/+OP/Tg+H7/u/s2f+P/+1LEQgPAABpBwAAACABBSHgAAABAMBAYE/HzVcnXaHOchyP4fEpHVHf/PJR87VHP/xERTMl+f7v8REVX/+1DEVQAAADSAHgAAIAAA0goAAARlQAMQAAAABBDJAAGAABA5FsREZFLqbVqgZWLUBKVqWKFQ3/i0kYKk+RpZq+r6rv+T6NckyqAqqqv/+2DEWQPAAAGkHAAACAAN4OAAAAC3Av/AiIKgiIg1gAB/xEDAQQCAARAXIuJ+LiZZf8REOQhiZmFLr39v0Pu/pppFMIgMx/rWkSEYP/7UMRwAcAAAaQAAAAgAADSAAAAEHnEPP46v9V9Wm0fRrv2b//pZNPsQMf/qxTJhwXH/4gZIH/yBsBh+XZkCB/8QMbL8vsZ';
+      audio.volume = 0;
+      audio.play().then(() => {
+        audio.pause();
+        audio.volume = 1;
+      }).catch(() => {
+        // Ignore errors from silent play
+      });
     }
     setIsEnabled(!isEnabled);
-  }, [isEnabled, stop]);
+  }, [isEnabled, stop, getAudio]);
 
   const enable = useCallback(() => {
     setIsEnabled(true);
