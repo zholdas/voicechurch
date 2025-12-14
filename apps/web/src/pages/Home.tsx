@@ -28,7 +28,7 @@ export default function Home() {
       {/* Navigation */}
       <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <span className="text-xl font-bold text-blue-600">WordBeacon</span>
+          <img src="/logo.svg" alt="WordBeacon" className="h-8" />
           <div className="flex items-center gap-4">
             {isAuthenticated ? (
               <>
@@ -64,23 +64,8 @@ export default function Home() {
         {/* Header */}
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
-            <div className="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center">
-              <svg
-                className="w-12 h-12 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                />
-              </svg>
-            </div>
+            <img src="/logo.svg" alt="WordBeacon" className="h-16" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">WordBeacon</h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Real-time speech translation for church services. Break language
             barriers and unite your congregation.

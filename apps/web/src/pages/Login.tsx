@@ -26,7 +26,7 @@ export default function Login() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">WordBeacon</h1>
+          <img src="/logo.svg" alt="WordBeacon" className="h-12 mx-auto mb-2" />
           <p className="mt-2 text-gray-600">
             Real-time translation for churches
           </p>

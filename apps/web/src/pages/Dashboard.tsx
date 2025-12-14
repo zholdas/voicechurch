@@ -109,8 +109,8 @@ export default function Dashboard() {
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="text-xl font-bold text-blue-600">
-            WordBeacon
+          <Link to="/">
+            <img src="/logo.svg" alt="WordBeacon" className="h-8" />
           </Link>
 
           <div className="flex items-center gap-4">
