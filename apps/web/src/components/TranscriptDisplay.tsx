@@ -7,12 +7,12 @@ interface TranscriptDisplayProps {
 }
 
 export default function TranscriptDisplay({ entries, fontSize }: TranscriptDisplayProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new entries arrive
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [entries]);
 
@@ -25,10 +25,7 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto transcript-scroll p-4 bg-white rounded-lg shadow-inner"
-    >
+    <div className="flex-1 overflow-y-auto transcript-scroll p-4 bg-white rounded-lg shadow-inner">
       <div
         className="space-y-2"
         style={{ fontSize: `${fontSize}px`, lineHeight: 1.6 }}
@@ -43,6 +40,8 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
             {entry.translated}{' '}
           </span>
         ))}
+        {/* Invisible element at the bottom for scrollIntoView */}
+        <div ref={bottomRef} />
       </div>
     </div>
   );
