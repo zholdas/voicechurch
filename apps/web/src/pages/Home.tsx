@@ -4,9 +4,23 @@ import { useAuth } from '../hooks/useAuth';
 import { roomsApi } from '../lib/api';
 import type { TranslationDirection, PublicRoomInfo } from '../lib/types';
 
+// Landing page components
+import Navbar from '../components/landing/Navbar';
+import HeroSection from '../components/landing/HeroSection';
+import OneChurchSection from '../components/landing/OneChurchSection';
+import SimpleSetupSection from '../components/landing/SimpleSetupSection';
+import OneServiceSection from '../components/landing/OneServiceSection';
+import FeaturesSection from '../components/landing/FeaturesSection';
+import WhyWordBeaconSection from '../components/landing/WhyWordBeaconSection';
+import PricingSection from '../components/landing/PricingSection';
+import FAQSection from '../components/landing/FAQSection';
+import ScheduleDemoSection from '../components/landing/ScheduleDemoSection';
+import CTASection from '../components/landing/CTASection';
+import Footer from '../components/landing/Footer';
+
 export default function Home() {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [publicRooms, setPublicRooms] = useState<PublicRoomInfo[]>([]);
   const [loadingRooms, setLoadingRooms] = useState(true);
 
@@ -24,57 +38,32 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-sm border-b sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <img src="/logo.svg" alt="WordBeacon" className="h-8" />
-          <div className="flex items-center gap-4">
-            {isAuthenticated ? (
-              <>
-                <Link
-                  to="/dashboard"
-                  className="text-gray-600 hover:text-gray-900"
-                >
-                  Dashboard
-                </Link>
-                <div className="flex items-center gap-2">
-                  {user?.picture && (
-                    <img
-                      src={user.picture}
-                      alt={user.name}
-                      className="w-8 h-8 rounded-full"
-                    />
-                  )}
-                </div>
-              </>
-            ) : (
-              <Link
-                to="/login"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Sign In
-              </Link>
-            )}
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
-      <div className="max-w-6xl mx-auto px-4 py-12">
-        {/* Header */}
-        <div className="text-center mb-16">
-          <div className="flex justify-center mb-6">
-            <img src="/logo.svg" alt="WordBeacon" className="h-16" />
-          </div>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Real-time speech translation for church services. Break language
-            barriers and unite your congregation.
-          </p>
-        </div>
+      {/* Hero Section */}
+      <HeroSection />
 
-        {/* Public Rooms */}
-        {!loadingRooms && publicRooms.length > 0 && (
-          <div className="mb-16">
+      {/* One Church, Many Languages */}
+      <OneChurchSection />
+
+      {/* Simple Setup */}
+      <SimpleSetupSection />
+
+      {/* One Service for Everyone */}
+      <OneServiceSection />
+
+      {/* Features */}
+      <FeaturesSection />
+
+      {/* Why WordBeacon */}
+      <WhyWordBeaconSection />
+
+      {/* Public Rooms - Keep existing functionality */}
+      {!loadingRooms && publicRooms.length > 0 && (
+        <section className="py-16 bg-gray-50">
+          <div className="max-w-6xl mx-auto px-4">
             <h2 className="text-2xl font-semibold text-gray-900 text-center mb-8">
               Active Rooms
             </h2>
@@ -114,49 +103,18 @@ export default function Home() {
               ))}
             </div>
           </div>
-        )}
+        </section>
+      )}
 
-        {/* How it works */}
-        <div className="mb-16">
-          <h2 className="text-2xl font-semibold text-gray-900 text-center mb-8">
-            How it works
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-blue-600 font-bold">1</span>
-              </div>
-              <h3 className="font-semibold mb-2">Start Broadcasting</h3>
-              <p className="text-gray-600 text-sm">
-                The speaker starts a broadcast and speaks in their language
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-blue-600 font-bold">2</span>
-              </div>
-              <h3 className="font-semibold mb-2">Share the Link</h3>
-              <p className="text-gray-600 text-sm">
-                Share the unique room link with visitors
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-blue-600 font-bold">3</span>
-              </div>
-              <h3 className="font-semibold mb-2">Listen & Read</h3>
-              <p className="text-gray-600 text-sm">
-                Visitors see live translation on their devices
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* CTA */}
-        <div className="text-center mb-16">
-          <h3 className="text-lg font-medium text-gray-700 mb-4">
-            Quick Broadcast (Temporary Room)
+      {/* Quick Broadcast - Keep existing functionality */}
+      <section className="py-16 bg-white">
+        <div className="max-w-6xl mx-auto px-4 text-center">
+          <h3 className="text-2xl font-semibold text-gray-900 mb-4">
+            Try It Now
           </h3>
+          <p className="text-gray-600 mb-8 max-w-xl mx-auto">
+            Start a quick broadcast with a temporary room. No sign-up required.
+          </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => handleQuickBroadcast('es-to-en')}
@@ -203,56 +161,35 @@ export default function Home() {
 
           {/* Sign in CTA */}
           {!isAuthenticated && (
-            <div className="mt-8 p-6 bg-blue-50 rounded-xl max-w-md mx-auto">
+            <div className="mt-8 p-6 bg-amber-50 border border-amber-200 rounded-xl max-w-md mx-auto">
               <p className="text-gray-700 mb-3">
                 Want to create permanent rooms with custom URLs?
               </p>
               <Link
                 to="/login"
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
               >
                 Sign in to manage rooms
               </Link>
             </div>
           )}
         </div>
+      </section>
 
-        {/* Features */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-2">
-              Real-time Translation
-            </h3>
-            <p className="text-gray-600 text-sm">
-              See translated text appear as the speaker talks, with minimal delay
-            </p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-2">Text-to-Speech</h3>
-            <p className="text-gray-600 text-sm">
-              Optional audio playback of translated text using browser speech
-              synthesis
-            </p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-2">No App Required</h3>
-            <p className="text-gray-600 text-sm">
-              Works in any modern browser - just share the link
-            </p>
-          </div>
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h3 className="font-semibold text-gray-900 mb-2">Accessibility</h3>
-            <p className="text-gray-600 text-sm">
-              Adjustable font size for comfortable reading on any device
-            </p>
-          </div>
-        </div>
+      {/* Pricing */}
+      <PricingSection />
 
-        {/* Have a link? */}
-        <div className="mt-12 text-center text-gray-500 text-sm">
-          Have a room link? Enter it directly in your browser's address bar.
-        </div>
-      </div>
+      {/* FAQ */}
+      <FAQSection />
+
+      {/* Schedule Demo */}
+      <ScheduleDemoSection />
+
+      {/* CTA */}
+      <CTASection />
+
+      {/* Footer */}
+      <Footer />
     </div>
   );
 }
