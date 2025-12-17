@@ -2,23 +2,22 @@ export default function SimpleSetupSection() {
   const steps = [
     {
       number: '01',
-      title: 'Connect Your Audio',
-      description: 'Connect your existing audio setup - microphone, mixer, or streaming software.',
+      title: 'Create Account',
+      description: 'Sign up in seconds to get started with WordBeacon.',
     },
     {
       number: '02',
-      title: 'Choose Languages',
-      description: 'Select the languages you want to translate to from our 40+ supported options.',
+      title: 'Create Room',
+      description: 'Set up your translation room with your preferred languages.',
     },
     {
       number: '03',
-      title: 'Ready to Listen',
-      description: 'Share the link with your congregation. They listen on their own devices.',
+      title: 'Generate Link & QR Code',
+      description: 'Share the link or QR code with your listeners to join.',
     },
   ];
 
   const features = [
-    'No internet required for speakers',
     'Broadcast Mode',
     'Low latency live streaming',
     'Works with any audio setup',
