@@ -10,6 +10,7 @@ import HeroSection from '../components/landing/HeroSection';
 import OneChurchSection from '../components/landing/OneChurchSection';
 import SimpleSetupSection from '../components/landing/SimpleSetupSection';
 import OneServiceSection from '../components/landing/OneServiceSection';
+import BeyondChurchesSection from '../components/landing/BeyondChurchesSection';
 import FeaturesSection from '../components/landing/FeaturesSection';
 import WhyWordBeaconSection from '../components/landing/WhyWordBeaconSection';
 import PricingSection from '../components/landing/PricingSection';
@@ -53,6 +54,9 @@ export default function Home() {
 
       {/* One Service for Everyone */}
       <OneServiceSection />
+
+      {/* Beyond Churches */}
+      <BeyondChurchesSection />
 
       {/* Features */}
       <FeaturesSection />
