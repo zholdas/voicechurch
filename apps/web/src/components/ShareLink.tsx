@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import QRCode from 'qrcode';
 import { roomsApi } from '../lib/api';
 import type { QRInfo } from '../lib/types';
 
@@ -15,6 +16,7 @@ export default function ShareLink({ roomId, roomDbId, qrImageUrl }: ShareLinkPro
     qrImageUrl ? { qrId: '', qrImageUrl, scanCount: 0 } : null
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [clientQrUrl, setClientQrUrl] = useState<string | null>(null);
 
   const shareUrl = `${window.location.origin}/room/${roomId}`;
 
@@ -28,7 +30,8 @@ export default function ShareLink({ roomId, roomDbId, qrImageUrl }: ShareLinkPro
     }
   };
 
-  const handleGenerateQR = useCallback(async () => {
+  // Server-side QR generation (for persistent rooms)
+  const handleGenerateServerQR = useCallback(async () => {
     if (!roomDbId) return;
     setIsGenerating(true);
     try {
@@ -42,24 +45,71 @@ export default function ShareLink({ roomId, roomDbId, qrImageUrl }: ShareLinkPro
     }
   }, [roomDbId]);
 
-  const handleDownloadQR = useCallback(async () => {
-    if (!qrInfo?.qrImageUrl) return;
+  // Client-side QR generation (for temporary rooms)
+  const handleGenerateClientQR = useCallback(async () => {
+    setIsGenerating(true);
     try {
-      const response = await fetch(qrInfo.qrImageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `qr-code-${roomId}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      const dataUrl = await QRCode.toDataURL(shareUrl, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+      setClientQrUrl(dataUrl);
+      setShowQR(true);
+    } catch (err) {
+      console.error('Failed to generate QR:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [shareUrl]);
+
+  const handleGenerateQR = useCallback(() => {
+    if (roomDbId) {
+      handleGenerateServerQR();
+    } else {
+      handleGenerateClientQR();
+    }
+  }, [roomDbId, handleGenerateServerQR, handleGenerateClientQR]);
+
+  const handleDownloadQR = useCallback(async () => {
+    const qrUrl = qrInfo?.qrImageUrl || clientQrUrl;
+    if (!qrUrl) return;
+
+    try {
+      if (qrUrl.startsWith('data:')) {
+        // Client-generated QR (data URL)
+        const link = document.createElement('a');
+        link.href = qrUrl;
+        link.download = `qr-code-${roomId}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Server-generated QR (URL)
+        const response = await fetch(qrUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `qr-code-${roomId}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
     } catch (err) {
       console.error('Failed to download QR:', err);
-      window.open(qrInfo.qrImageUrl, '_blank');
+      if (qrUrl && !qrUrl.startsWith('data:')) {
+        window.open(qrUrl, '_blank');
+      }
     }
-  }, [qrInfo, roomId]);
+  }, [qrInfo, clientQrUrl, roomId]);
+
+  const currentQrUrl = qrInfo?.qrImageUrl || clientQrUrl;
+  const hasQR = !!currentQrUrl;
 
   return (
     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -85,42 +135,40 @@ export default function ShareLink({ roomId, roomDbId, qrImageUrl }: ShareLinkPro
         </button>
       </div>
 
-      {/* QR Code section */}
-      {roomDbId && (
-        <div className="border-t border-blue-200 pt-3 mt-3">
-          {qrInfo?.qrImageUrl ? (
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setShowQR(!showQR)}
-                className="text-sm text-blue-700 hover:underline"
-              >
-                {showQR ? 'Hide QR Code' : 'Show QR Code'}
-              </button>
-              {showQR && (
-                <>
-                  <div className="p-2 bg-white rounded">
-                    <img src={qrInfo.qrImageUrl} alt="QR Code" className="w-24 h-24" />
-                  </div>
-                  <button
-                    onClick={handleDownloadQR}
-                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Download
-                  </button>
-                </>
-              )}
-            </div>
-          ) : (
+      {/* QR Code section - always shown */}
+      <div className="border-t border-blue-200 pt-3 mt-3">
+        {hasQR ? (
+          <div className="flex items-center gap-4">
             <button
-              onClick={handleGenerateQR}
-              disabled={isGenerating}
-              className="text-sm text-blue-700 hover:underline disabled:opacity-50"
+              onClick={() => setShowQR(!showQR)}
+              className="text-sm text-blue-700 hover:underline"
             >
-              {isGenerating ? 'Generating...' : 'Generate QR Code'}
+              {showQR ? 'Hide QR Code' : 'Show QR Code'}
             </button>
-          )}
-        </div>
-      )}
+            {showQR && (
+              <>
+                <div className="p-2 bg-white rounded">
+                  <img src={currentQrUrl} alt="QR Code" className="w-24 h-24" />
+                </div>
+                <button
+                  onClick={handleDownloadQR}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Download
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={handleGenerateQR}
+            disabled={isGenerating}
+            className="text-sm text-blue-700 hover:underline disabled:opacity-50"
+          >
+            {isGenerating ? 'Generating...' : 'Generate QR Code'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
