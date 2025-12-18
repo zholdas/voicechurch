@@ -10,7 +10,9 @@ import {
   updateRoomQR,
   getRoom,
 } from '../websocket/rooms.js';
-import type { TranslationDirection } from '../websocket/types.js';
+import type { LanguageCode } from '../websocket/types.js';
+import { directionToLanguages } from '../websocket/types.js';
+import { isValidLanguageCode } from '../languages.js';
 import { qrMapperService } from '../services/qr.js';
 import { generateQRCode } from '../services/qr-local.js';
 import { config } from '../config.js';
@@ -52,10 +54,12 @@ router.get('/:slug', (req, res) => {
 
 // POST /api/rooms - Create a new room (auth required)
 router.post('/', requireAuth, (req, res) => {
-  const { name, slug, direction, isPublic } = req.body as {
+  const { name, slug, sourceLanguage, targetLanguage, direction, isPublic } = req.body as {
     name: string;
     slug: string;
-    direction?: TranslationDirection;
+    sourceLanguage?: LanguageCode;
+    targetLanguage?: LanguageCode;
+    direction?: string; // For backwards compatibility
     isPublic?: boolean;
   };
 
@@ -67,7 +71,7 @@ router.post('/', requireAuth, (req, res) => {
   // Validate slug format
   if (!/^[a-z0-9-]+$/.test(slug) || slug.length < 3 || slug.length > 50) {
     return res.status(400).json({
-      error: 'Slug must be 3-50 characters, lowercase letters, numbers, and hyphens only'
+      error: 'Slug must be 3-50 characters, lowercase letters, numbers, and hyphens only',
     });
   }
 
@@ -77,11 +81,30 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(409).json({ error: 'Room with this URL already exists' });
   }
 
+  // Handle language selection - new fields or backwards compatibility
+  let srcLang: LanguageCode = sourceLanguage || 'en';
+  let tgtLang: LanguageCode = targetLanguage || 'es';
+
+  // Backwards compatibility: convert direction to source/target
+  if (direction && !sourceLanguage && !targetLanguage) {
+    if (direction === 'es-to-en' || direction === 'en-to-es') {
+      const converted = directionToLanguages(direction);
+      srcLang = converted.sourceLanguage;
+      tgtLang = converted.targetLanguage;
+    }
+  }
+
+  // Validate language codes
+  if (!isValidLanguageCode(srcLang) || !isValidLanguageCode(tgtLang)) {
+    return res.status(400).json({ error: 'Invalid source or target language code' });
+  }
+
   try {
     const room = createPersistentRoom({
       name,
       slug,
-      direction: direction || 'es-to-en',
+      sourceLanguage: srcLang,
+      targetLanguage: tgtLang,
       isPublic: isPublic ?? false,
       ownerId: req.user!.id,
     });
@@ -132,13 +155,41 @@ router.post('/', requireAuth, (req, res) => {
 // PUT /api/rooms/:id - Update a room (auth required, owner only)
 router.put('/:id', requireAuth, (req, res) => {
   const { id } = req.params;
-  const { name, direction, isPublic } = req.body as {
+  const { name, sourceLanguage, targetLanguage, direction, isPublic } = req.body as {
     name?: string;
-    direction?: TranslationDirection;
+    sourceLanguage?: LanguageCode;
+    targetLanguage?: LanguageCode;
+    direction?: string; // For backwards compatibility
     isPublic?: boolean;
   };
 
-  const room = updatePersistentRoom(id, req.user!.id, { name, direction, isPublic });
+  // Handle language updates - new fields or backwards compatibility
+  let srcLang: LanguageCode | undefined = sourceLanguage;
+  let tgtLang: LanguageCode | undefined = targetLanguage;
+
+  // Backwards compatibility: convert direction to source/target
+  if (direction && !sourceLanguage && !targetLanguage) {
+    if (direction === 'es-to-en' || direction === 'en-to-es') {
+      const converted = directionToLanguages(direction);
+      srcLang = converted.sourceLanguage;
+      tgtLang = converted.targetLanguage;
+    }
+  }
+
+  // Validate language codes if provided
+  if (srcLang && !isValidLanguageCode(srcLang)) {
+    return res.status(400).json({ error: 'Invalid source language code' });
+  }
+  if (tgtLang && !isValidLanguageCode(tgtLang)) {
+    return res.status(400).json({ error: 'Invalid target language code' });
+  }
+
+  const room = updatePersistentRoom(id, req.user!.id, {
+    name,
+    sourceLanguage: srcLang,
+    targetLanguage: tgtLang,
+    isPublic,
+  });
 
   if (!room) {
     return res.status(404).json({ error: 'Room not found or not authorized' });

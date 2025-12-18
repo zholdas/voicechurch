@@ -1,4 +1,4 @@
-import type { User, RoomInfo, PublicRoomInfo, TranslationDirection, QRInfo } from './types';
+import type { User, RoomInfo, PublicRoomInfo, LanguageCode, QRInfo } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -45,7 +45,8 @@ export const roomsApi = {
   createRoom: (data: {
     name: string;
     slug: string;
-    direction?: TranslationDirection;
+    sourceLanguage?: LanguageCode;
+    targetLanguage?: LanguageCode;
     isPublic?: boolean;
   }) =>
     fetchApi<RoomInfo>('/api/rooms', {
@@ -53,11 +54,15 @@ export const roomsApi = {
       body: JSON.stringify(data),
     }),
 
-  updateRoom: (id: string, data: {
-    name?: string;
-    direction?: TranslationDirection;
-    isPublic?: boolean;
-  }) =>
+  updateRoom: (
+    id: string,
+    data: {
+      name?: string;
+      sourceLanguage?: LanguageCode;
+      targetLanguage?: LanguageCode;
+      isPublic?: boolean;
+    }
+  ) =>
     fetchApi<RoomInfo>(`/api/rooms/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -73,6 +78,5 @@ export const roomsApi = {
       method: 'POST',
     }),
 
-  getQRInfo: (id: string) =>
-    fetchApi<QRInfo>(`/api/rooms/${id}/qr`),
+  getQRInfo: (id: string) => fetchApi<QRInfo>(`/api/rooms/${id}/qr`),
 };

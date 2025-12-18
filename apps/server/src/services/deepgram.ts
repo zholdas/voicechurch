@@ -4,6 +4,7 @@ import { broadcastToListeners, setDeepgramConnection, getRoom } from '../websock
 import { translate, translateWithDebounce, cancelPendingTranslation } from './translation.js';
 import { synthesizeSpeech, isGoogleTtsConfigured } from './google-tts.js';
 import type { ServerMessage } from '../websocket/types.js';
+import { getLanguageConfig } from '../languages.js';
 
 export function createDeepgramConnection(roomId: string): void {
   if (!config.deepgram.apiKey) {
@@ -19,8 +20,9 @@ export function createDeepgramConnection(roomId: string): void {
 
   const deepgram = createClient(config.deepgram.apiKey);
 
-  // Set language based on translation direction
-  const language = room.translationDirection === 'es-to-en' ? 'es' : 'en';
+  // Get language code from config using sourceLanguage
+  const langConfig = getLanguageConfig(room.sourceLanguage);
+  const language = langConfig.deepgramCode;
 
   const connection = deepgram.listen.live({
     model: 'nova-2',
@@ -43,18 +45,18 @@ export function createDeepgramConnection(roomId: string): void {
 
     const isFinal = data.is_final;
     const timestamp = Date.now();
-    const direction = room.translationDirection;
+    const { sourceLanguage, targetLanguage } = room;
 
     if (isFinal) {
       // For final results, translate immediately
       cancelPendingTranslation(roomId);
-      const translated = await translate(transcript, direction);
+      const translated = await translate(transcript, sourceLanguage, targetLanguage);
 
       // Generate TTS audio if Google TTS is configured
       let audioBase64: string | undefined;
       if (isGoogleTtsConfigured()) {
         try {
-          const audioBuffer = await synthesizeSpeech(translated, direction);
+          const audioBuffer = await synthesizeSpeech(translated, targetLanguage);
           if (audioBuffer) {
             audioBase64 = audioBuffer.toString('base64');
           }
@@ -75,7 +77,7 @@ export function createDeepgramConnection(roomId: string): void {
       broadcastToListeners(roomId, message);
     } else {
       // For interim results, debounce translation (300ms)
-      translateWithDebounce(roomId, transcript, direction, 300, (translated) => {
+      translateWithDebounce(roomId, transcript, sourceLanguage, targetLanguage, 300, (translated) => {
         const message: ServerMessage = {
           type: 'transcript',
           source: transcript,

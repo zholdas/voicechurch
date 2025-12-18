@@ -1,5 +1,11 @@
 import type { WebSocket } from 'ws';
-import type { ClientMessage, ServerMessage, ExtendedWebSocket, TranslationDirection } from './types.js';
+import type {
+  ClientMessage,
+  ServerMessage,
+  ExtendedWebSocket,
+  LanguageCode,
+} from './types.js';
+import { directionToLanguages, languagesToDirection } from './types.js';
 import {
   createRoom,
   getRoom,
@@ -13,6 +19,7 @@ import {
   sendAudioToDeepgram,
   closeDeepgramConnection,
 } from '../services/deepgram.js';
+import { isValidLanguageCode } from '../languages.js';
 
 function send(ws: WebSocket, message: ServerMessage): void {
   if (ws.readyState === ws.OPEN) {
@@ -63,7 +70,7 @@ export function handleConnection(ws: ExtendedWebSocket): void {
 function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
   switch (message.type) {
     case 'create_room':
-      handleCreateRoom(ws, message.name, message.slug, message.direction);
+      handleCreateRoom(ws, message);
       break;
 
     case 'join_room':
@@ -83,21 +90,48 @@ function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
   }
 }
 
-function handleCreateRoom(ws: ExtendedWebSocket, name?: string, slug?: string, direction?: TranslationDirection): void {
+function handleCreateRoom(
+  ws: ExtendedWebSocket,
+  message: Extract<ClientMessage, { type: 'create_room' }>
+): void {
   try {
-    const room = createRoom({ name, slug, direction });
+    // Handle backwards compatibility: convert direction to source/target if needed
+    let sourceLanguage: LanguageCode = message.sourceLanguage || 'en';
+    let targetLanguage: LanguageCode = message.targetLanguage || 'es';
+
+    if (message.direction && !message.sourceLanguage && !message.targetLanguage) {
+      const converted = directionToLanguages(message.direction);
+      sourceLanguage = converted.sourceLanguage;
+      targetLanguage = converted.targetLanguage;
+    }
+
+    // Validate language codes
+    if (!isValidLanguageCode(sourceLanguage) || !isValidLanguageCode(targetLanguage)) {
+      sendError(ws, 'INVALID_LANGUAGE', 'Invalid source or target language code');
+      return;
+    }
+
+    const room = createRoom({
+      name: message.name,
+      slug: message.slug,
+      sourceLanguage,
+      targetLanguage,
+    });
 
     // Automatically join as broadcaster
     addBroadcaster(room.id, ws);
 
     // Don't create Deepgram connection yet - wait for audio
+    const direction = languagesToDirection(room.sourceLanguage, room.targetLanguage);
 
     send(ws, {
       type: 'room_created',
       roomId: room.id,
       slug: room.slug,
       name: room.name,
-      direction: room.translationDirection,
+      sourceLanguage: room.sourceLanguage,
+      targetLanguage: room.targetLanguage,
+      direction,
     });
 
     send(ws, {
@@ -106,7 +140,9 @@ function handleCreateRoom(ws: ExtendedWebSocket, name?: string, slug?: string, d
       role: 'broadcaster',
       listenerCount: 0,
       roomName: room.name,
-      direction: room.translationDirection,
+      sourceLanguage: room.sourceLanguage,
+      targetLanguage: room.targetLanguage,
+      direction,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to create room';
@@ -139,13 +175,17 @@ function handleJoinRoom(
     addListener(room.id, ws);
   }
 
+  const direction = languagesToDirection(room.sourceLanguage, room.targetLanguage);
+
   send(ws, {
     type: 'joined',
     roomId: room.id,
     role,
     listenerCount: room.listeners.size,
     roomName: room.name,
-    direction: room.translationDirection,
+    sourceLanguage: room.sourceLanguage,
+    targetLanguage: room.targetLanguage,
+    direction,
   });
 
   // Notify if broadcast is already active

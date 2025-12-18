@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { roomsApi } from '../lib/api';
-import type { TranslationDirection, PublicRoomInfo } from '../lib/types';
+import type { PublicRoomInfo, LanguageCode } from '../lib/types';
+import { SUPPORTED_LANGUAGES, getLanguageName } from '../lib/types';
 
 // Landing page components
 import Navbar from '../components/landing/Navbar';
@@ -34,8 +35,11 @@ export default function Home() {
       .finally(() => setLoadingRooms(false));
   }, []);
 
-  const handleQuickBroadcast = (dir: TranslationDirection) => {
-    navigate(`/broadcast?direction=${dir}`);
+  const [quickSource, setQuickSource] = useState<LanguageCode>('es');
+  const [quickTarget, setQuickTarget] = useState<LanguageCode>('en');
+
+  const handleQuickBroadcast = () => {
+    navigate(`/broadcast?source=${quickSource}&target=${quickTarget}`);
   };
 
   return (
@@ -90,16 +94,8 @@ export default function Home() {
                     )}
                   </div>
                   <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span
-                      className={`px-2 py-0.5 rounded-full ${
-                        room.direction === 'es-to-en'
-                          ? 'bg-blue-50 text-blue-700'
-                          : 'bg-green-50 text-green-700'
-                      }`}
-                    >
-                      {room.direction === 'es-to-en'
-                        ? 'ES → EN'
-                        : 'EN → ES'}
+                    <span className="px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-50 to-green-50 text-gray-700">
+                      {room.sourceLanguage?.toUpperCase() || 'ES'} → {room.targetLanguage?.toUpperCase() || 'EN'}
                     </span>
                     <span>{room.listenerCount} listeners</span>
                   </div>
@@ -119,10 +115,47 @@ export default function Home() {
           <p className="text-gray-600 mb-8 max-w-xl mx-auto">
             Start a quick broadcast with a temporary room. No sign-up required.
           </p>
+
+          {/* Language selection */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-6">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">From:</label>
+              <select
+                value={quickSource}
+                onChange={(e) => setQuickSource(e.target.value as LanguageCode)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name} ({lang.nativeName})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <svg className="w-5 h-5 text-gray-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">To:</label>
+              <select
+                value={quickTarget}
+                onChange={(e) => setQuickTarget(e.target.value as LanguageCode)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name} ({lang.nativeName})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
-              onClick={() => handleQuickBroadcast('es-to-en')}
-              className="inline-flex items-center justify-center px-6 py-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={handleQuickBroadcast}
+              disabled={quickSource === quickTarget}
+              className="inline-flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-600 to-green-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -137,26 +170,7 @@ export default function Home() {
                   d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
                 />
               </svg>
-              Spanish → English
-            </button>
-            <button
-              onClick={() => handleQuickBroadcast('en-to-es')}
-              className="inline-flex items-center justify-center px-6 py-4 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                />
-              </svg>
-              English → Spanish
+              Start Broadcasting ({getLanguageName(quickSource)} → {getLanguageName(quickTarget)})
             </button>
             <Link
               to="/join"
@@ -178,6 +192,11 @@ export default function Home() {
               Join Room
             </Link>
           </div>
+          {quickSource === quickTarget && (
+            <p className="mt-2 text-sm text-amber-600">
+              Please select different source and target languages
+            </p>
+          )}
           <p className="mt-4 text-sm text-gray-500">
             Start a temporary room with a random URL
           </p>

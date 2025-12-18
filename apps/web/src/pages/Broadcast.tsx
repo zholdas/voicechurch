@@ -6,14 +6,16 @@ import ConnectionStatus from '../components/ConnectionStatus';
 import ShareLink from '../components/ShareLink';
 import AudioCapture from '../components/AudioCapture';
 import { roomsApi } from '../lib/api';
-import type { ServerMessage, TranslationDirection, RoomInfo } from '../lib/types';
+import type { ServerMessage, RoomInfo, LanguageCode } from '../lib/types';
+import { SUPPORTED_LANGUAGES, getLanguageName } from '../lib/types';
 
 export default function Broadcast() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
   const [searchParams] = useSearchParams();
   const paramName = searchParams.get('name');
   const paramSlug = searchParams.get('slug');
-  const paramDirection = searchParams.get('direction') as TranslationDirection | null;
+  const paramSourceLang = searchParams.get('source') as LanguageCode | null;
+  const paramTargetLang = searchParams.get('target') as LanguageCode | null;
 
   // If we have a room ID from URL (existing room), join it
   // Otherwise create a new room
@@ -22,7 +24,8 @@ export default function Broadcast() {
   const [roomId, setRoomId] = useState<string | null>(urlRoomId || null);
   const [roomSlug, setRoomSlug] = useState<string | null>(urlRoomId || null);
   const [roomName, setRoomName] = useState<string | null>(paramName);
-  const [direction, setDirection] = useState<TranslationDirection>(paramDirection || 'es-to-en');
+  const [sourceLanguage, setSourceLanguage] = useState<LanguageCode>(paramSourceLang || 'es');
+  const [targetLanguage, setTargetLanguage] = useState<LanguageCode>(paramTargetLang || 'en');
   const [listenerCount, setListenerCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [roomReady, setRoomReady] = useState(false);
@@ -34,7 +37,8 @@ export default function Broadcast() {
         setRoomId(message.roomId);
         setRoomSlug(message.slug);
         setRoomName(message.name);
-        setDirection(message.direction);
+        if (message.sourceLanguage) setSourceLanguage(message.sourceLanguage);
+        if (message.targetLanguage) setTargetLanguage(message.targetLanguage);
         setRoomReady(true);
         break;
       case 'joined':
@@ -42,9 +46,8 @@ export default function Broadcast() {
         if (message.roomName) {
           setRoomName(message.roomName);
         }
-        if (message.direction) {
-          setDirection(message.direction);
-        }
+        if (message.sourceLanguage) setSourceLanguage(message.sourceLanguage);
+        if (message.targetLanguage) setTargetLanguage(message.targetLanguage);
         setListenerCount(message.listenerCount);
         setRoomReady(true);
         break;
@@ -102,11 +105,12 @@ export default function Broadcast() {
           type: 'create_room',
           name: paramName || undefined,
           slug: paramSlug || undefined,
-          direction: paramDirection || 'es-to-en',
+          sourceLanguage: paramSourceLang || 'es',
+          targetLanguage: paramTargetLang || 'en',
         });
       }
     }
-  }, [isConnected, roomReady, isExistingRoom, urlRoomId, send, paramName, paramSlug, paramDirection]);
+  }, [isConnected, roomReady, isExistingRoom, urlRoomId, send, paramName, paramSlug, paramSourceLang, paramTargetLang]);
 
   const handleStartBroadcast = () => {
     startRecording();
@@ -145,15 +149,13 @@ export default function Broadcast() {
           </div>
         )}
 
-        {/* Room name and direction */}
+        {/* Room name and languages */}
         <div className="mb-4 text-center">
           {roomName && (
             <h2 className="text-2xl font-bold text-gray-900">{roomName}</h2>
           )}
-          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mt-2 ${
-            direction === 'es-to-en' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-          }`}>
-            {direction === 'es-to-en' ? 'Spanish → English' : 'English → Spanish'}
+          <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mt-2 bg-gradient-to-r from-blue-100 to-green-100 text-gray-700">
+            {getLanguageName(sourceLanguage)} → {getLanguageName(targetLanguage)}
           </div>
         </div>
 
@@ -207,7 +209,7 @@ export default function Broadcast() {
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-500">
                 Speak clearly into your microphone. Your speech will be
-                translated {direction === 'es-to-en' ? 'to English' : 'to Spanish'} in real-time.
+                translated to {getLanguageName(targetLanguage)} in real-time.
               </p>
             </div>
           )}
@@ -219,8 +221,8 @@ export default function Broadcast() {
           <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
             <li>Share the link above with visitors who need translation</li>
             <li>Click the button to start broadcasting</li>
-            <li>Speak clearly in {direction === 'es-to-en' ? 'Spanish' : 'English'}</li>
-            <li>Visitors will see the {direction === 'es-to-en' ? 'English' : 'Spanish'} translation in real-time</li>
+            <li>Speak clearly in {getLanguageName(sourceLanguage)}</li>
+            <li>Visitors will see the {getLanguageName(targetLanguage)} translation in real-time</li>
             <li>Click again to stop the broadcast</li>
           </ol>
         </div>

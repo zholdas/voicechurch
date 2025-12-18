@@ -1,7 +1,8 @@
 import textToSpeech from '@google-cloud/text-to-speech';
 import type { google } from '@google-cloud/text-to-speech/build/protos/protos.js';
 import { config } from '../config.js';
-import type { TranslationDirection } from '../websocket/types.js';
+import type { LanguageCode } from '../languages.js';
+import { getLanguageConfig } from '../languages.js';
 
 let client: textToSpeech.TextToSpeechClient | null = null;
 
@@ -27,31 +28,25 @@ export function isGoogleTtsConfigured(): boolean {
   return !!config.googleTts.credentialsJson;
 }
 
-export function getVoiceConfig(direction: TranslationDirection): {
+export function getVoiceConfig(targetLanguage: LanguageCode): {
   languageCode: string;
   voiceName: string;
 } {
-  if (direction === 'es-to-en') {
-    return {
-      languageCode: 'en-US',
-      voiceName: config.googleTts.voiceNameEn,
-    };
-  } else {
-    return {
-      languageCode: 'es-ES',
-      voiceName: config.googleTts.voiceNameEs,
-    };
-  }
+  const langConfig = getLanguageConfig(targetLanguage);
+  return {
+    languageCode: langConfig.googleTtsCode,
+    voiceName: langConfig.googleTtsVoice,
+  };
 }
 
 export async function synthesizeSpeech(
   text: string,
-  direction: TranslationDirection
+  targetLanguage: LanguageCode
 ): Promise<Buffer | null> {
   const ttsClient = getClient();
   if (!ttsClient) return null;
 
-  const { languageCode, voiceName } = getVoiceConfig(direction);
+  const { languageCode, voiceName } = getVoiceConfig(targetLanguage);
 
   try {
     const request: google.cloud.texttospeech.v1.ISynthesizeSpeechRequest = {

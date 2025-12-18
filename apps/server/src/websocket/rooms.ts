@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import type { Room, ExtendedWebSocket, ServerMessage, TranslationDirection } from './types.js';
+import type { Room, ExtendedWebSocket, ServerMessage, LanguageCode } from './types.js';
+import { languagesToDirection } from './types.js';
 import * as db from '../db/index.js';
 
 // In-memory room storage (includes both persistent and temporary rooms)
@@ -26,6 +27,8 @@ export function initRooms(): void {
       isPersistent: true,
       isPublic: dbRoom.isPublic,
       ownerId: dbRoom.ownerId,
+      sourceLanguage: dbRoom.sourceLanguage,
+      targetLanguage: dbRoom.targetLanguage,
       translationDirection: dbRoom.direction,
       createdAt: dbRoom.createdAt,
       broadcaster: null,
@@ -48,7 +51,12 @@ export function getRoomBySlug(slug: string): Room | undefined {
 }
 
 // Create a temporary room (for WebSocket-based creation without auth)
-export function createRoom(options?: { name?: string; slug?: string; direction?: TranslationDirection }): Room {
+export function createRoom(options?: {
+  name?: string;
+  slug?: string;
+  sourceLanguage?: LanguageCode;
+  targetLanguage?: LanguageCode;
+}): Room {
   const slug = options?.slug || generateRoomId();
 
   // Validate slug if custom
@@ -62,6 +70,10 @@ export function createRoom(options?: { name?: string; slug?: string; direction?:
   }
 
   const roomId = generateRoomId();
+  const sourceLanguage: LanguageCode = options?.sourceLanguage || 'en';
+  const targetLanguage: LanguageCode = options?.targetLanguage || 'es';
+  const direction = languagesToDirection(sourceLanguage, targetLanguage);
+
   const room: Room = {
     id: roomId,
     slug,
@@ -69,7 +81,9 @@ export function createRoom(options?: { name?: string; slug?: string; direction?:
     isPersistent: false, // WebSocket-created rooms are temporary
     isPublic: false,
     ownerId: null,
-    translationDirection: options?.direction || 'es-to-en',
+    sourceLanguage,
+    targetLanguage,
+    translationDirection: direction,
     createdAt: new Date(),
     broadcaster: null,
     listeners: new Set(),
@@ -80,7 +94,9 @@ export function createRoom(options?: { name?: string; slug?: string; direction?:
   };
 
   rooms.set(roomId, room);
-  console.log(`Temporary room created: ${roomId} (slug: ${slug}, direction: ${room.translationDirection})`);
+  console.log(
+    `Temporary room created: ${roomId} (slug: ${slug}, ${sourceLanguage} → ${targetLanguage})`
+  );
 
   return room;
 }
@@ -89,7 +105,8 @@ export function createRoom(options?: { name?: string; slug?: string; direction?:
 export function createPersistentRoom(options: {
   name: string;
   slug: string;
-  direction: TranslationDirection;
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
   isPublic: boolean;
   ownerId: string;
 }): Room {
@@ -107,7 +124,8 @@ export function createPersistentRoom(options: {
   const dbRoom = db.createRoom({
     slug: options.slug,
     name: options.name,
-    direction: options.direction,
+    sourceLanguage: options.sourceLanguage,
+    targetLanguage: options.targetLanguage,
     isPublic: options.isPublic,
     ownerId: options.ownerId,
   });
@@ -120,6 +138,8 @@ export function createPersistentRoom(options: {
     isPersistent: true,
     isPublic: dbRoom.isPublic,
     ownerId: dbRoom.ownerId,
+    sourceLanguage: dbRoom.sourceLanguage,
+    targetLanguage: dbRoom.targetLanguage,
     translationDirection: dbRoom.direction,
     createdAt: dbRoom.createdAt,
     broadcaster: null,
@@ -156,7 +176,12 @@ export function updateRoomQR(roomId: string, qrId: string, qrImageUrl: string): 
 export function updatePersistentRoom(
   roomId: string,
   ownerId: string,
-  updates: { name?: string; direction?: TranslationDirection; isPublic?: boolean }
+  updates: {
+    name?: string;
+    sourceLanguage?: LanguageCode;
+    targetLanguage?: LanguageCode;
+    isPublic?: boolean;
+  }
 ): Room | null {
   const room = rooms.get(roomId);
   if (!room || !room.isPersistent || room.ownerId !== ownerId) {
@@ -169,7 +194,11 @@ export function updatePersistentRoom(
 
   // Update in-memory
   if (updates.name !== undefined) room.name = updates.name;
-  if (updates.direction !== undefined) room.translationDirection = updates.direction;
+  if (updates.sourceLanguage !== undefined) room.sourceLanguage = updates.sourceLanguage;
+  if (updates.targetLanguage !== undefined) room.targetLanguage = updates.targetLanguage;
+  if (updates.sourceLanguage !== undefined || updates.targetLanguage !== undefined) {
+    room.translationDirection = languagesToDirection(room.sourceLanguage, room.targetLanguage);
+  }
   if (updates.isPublic !== undefined) room.isPublic = updates.isPublic;
 
   return room;
@@ -354,16 +383,20 @@ export function getPublicRoomsWithStatus(): Array<{
   id: string;
   slug: string;
   name: string;
-  direction: TranslationDirection;
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
+  direction: string;
   isActive: boolean;
   listenerCount: number;
 }> {
   return Array.from(rooms.values())
-    .filter(r => r.isPersistent && r.isPublic)
-    .map(r => ({
+    .filter((r) => r.isPersistent && r.isPublic)
+    .map((r) => ({
       id: r.id,
       slug: r.slug,
       name: r.name,
+      sourceLanguage: r.sourceLanguage,
+      targetLanguage: r.targetLanguage,
       direction: r.translationDirection,
       isActive: r.isActive,
       listenerCount: r.listeners.size,
@@ -375,7 +408,9 @@ export function getUserRoomsWithStatus(ownerId: string): Array<{
   id: string;
   slug: string;
   name: string;
-  direction: TranslationDirection;
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
+  direction: string;
   isPublic: boolean;
   isActive: boolean;
   listenerCount: number;
@@ -383,11 +418,13 @@ export function getUserRoomsWithStatus(ownerId: string): Array<{
   qrImageUrl: string | null;
 }> {
   return Array.from(rooms.values())
-    .filter(r => r.isPersistent && r.ownerId === ownerId)
-    .map(r => ({
+    .filter((r) => r.isPersistent && r.ownerId === ownerId)
+    .map((r) => ({
       id: r.id,
       slug: r.slug,
       name: r.name,
+      sourceLanguage: r.sourceLanguage,
+      targetLanguage: r.targetLanguage,
       direction: r.translationDirection,
       isPublic: r.isPublic,
       isActive: r.isActive,
@@ -402,7 +439,9 @@ export function getRoomWithStatus(slugOrId: string): {
   id: string;
   slug: string;
   name: string;
-  direction: TranslationDirection;
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
+  direction: string;
   isPublic: boolean;
   isActive: boolean;
   listenerCount: number;
@@ -416,6 +455,8 @@ export function getRoomWithStatus(slugOrId: string): {
     id: room.id,
     slug: room.slug,
     name: room.name,
+    sourceLanguage: room.sourceLanguage,
+    targetLanguage: room.targetLanguage,
     direction: room.translationDirection,
     isPublic: room.isPublic,
     isActive: room.isActive,

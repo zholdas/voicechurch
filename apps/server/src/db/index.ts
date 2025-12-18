@@ -2,7 +2,8 @@ import Database, { type Database as DatabaseType } from 'better-sqlite3';
 import crypto from 'crypto';
 import { mkdirSync, existsSync } from 'fs';
 import { dirname } from 'path';
-import type { TranslationDirection } from '../websocket/types.js';
+import type { LanguageCode } from '../languages.js';
+import { languagesToDirection, type TranslationDirection } from '../websocket/types.js';
 
 // Database path - use environment variable or default
 const dbPath = process.env.DATABASE_PATH || './data/voicechurch.db';
@@ -58,6 +59,45 @@ try {
   console.log('Added qr_image_url column to rooms table');
 } catch {
   // Column already exists, ignore
+}
+
+// Migration: Add source_language and target_language columns
+try {
+  db.exec(`ALTER TABLE rooms ADD COLUMN source_language TEXT`);
+  console.log('Added source_language column to rooms table');
+} catch {
+  // Column already exists, ignore
+}
+
+try {
+  db.exec(`ALTER TABLE rooms ADD COLUMN target_language TEXT`);
+  console.log('Added target_language column to rooms table');
+} catch {
+  // Column already exists, ignore
+}
+
+// Migrate existing data from direction to source_language/target_language
+try {
+  const migrateStmt = db.prepare(`
+    UPDATE rooms SET
+      source_language = CASE
+        WHEN direction = 'es-to-en' THEN 'es'
+        WHEN direction = 'en-to-es' THEN 'en'
+        ELSE 'en'
+      END,
+      target_language = CASE
+        WHEN direction = 'es-to-en' THEN 'en'
+        WHEN direction = 'en-to-es' THEN 'es'
+        ELSE 'es'
+      END
+    WHERE source_language IS NULL OR target_language IS NULL
+  `);
+  const result = migrateStmt.run();
+  if (result.changes > 0) {
+    console.log(`Migrated ${result.changes} rooms to source_language/target_language`);
+  }
+} catch (error) {
+  console.error('Migration error:', error);
 }
 
 // User types and functions
@@ -140,6 +180,8 @@ export interface DbRoom {
   id: string;
   slug: string;
   name: string;
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
   direction: TranslationDirection;
   isPublic: boolean;
   ownerId: string;
@@ -151,16 +193,27 @@ export interface DbRoom {
 export function createRoom(data: {
   slug: string;
   name: string;
-  direction: TranslationDirection;
+  sourceLanguage: LanguageCode;
+  targetLanguage: LanguageCode;
   isPublic: boolean;
   ownerId: string;
 }): DbRoom {
   const id = crypto.randomUUID().slice(0, 8);
+  const direction = languagesToDirection(data.sourceLanguage, data.targetLanguage);
   const stmt = db.prepare(`
-    INSERT INTO rooms (id, slug, name, direction, is_public, owner_id)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO rooms (id, slug, name, direction, source_language, target_language, is_public, owner_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  stmt.run(id, data.slug, data.name, data.direction, data.isPublic ? 1 : 0, data.ownerId);
+  stmt.run(
+    id,
+    data.slug,
+    data.name,
+    direction,
+    data.sourceLanguage,
+    data.targetLanguage,
+    data.isPublic ? 1 : 0,
+    data.ownerId
+  );
   return getRoomById(id)!;
 }
 
@@ -192,7 +245,8 @@ export function getRoomsByOwner(ownerId: string): DbRoom[] {
 
 export function updateRoom(id: string, data: {
   name?: string;
-  direction?: TranslationDirection;
+  sourceLanguage?: LanguageCode;
+  targetLanguage?: LanguageCode;
   isPublic?: boolean;
 }): DbRoom | null {
   const room = getRoomById(id);
@@ -205,9 +259,20 @@ export function updateRoom(id: string, data: {
     updates.push('name = ?');
     values.push(data.name);
   }
-  if (data.direction !== undefined) {
+  if (data.sourceLanguage !== undefined) {
+    updates.push('source_language = ?');
+    values.push(data.sourceLanguage);
+  }
+  if (data.targetLanguage !== undefined) {
+    updates.push('target_language = ?');
+    values.push(data.targetLanguage);
+  }
+  // Update direction if either language changed
+  if (data.sourceLanguage !== undefined || data.targetLanguage !== undefined) {
+    const srcLang = data.sourceLanguage ?? room.sourceLanguage;
+    const tgtLang = data.targetLanguage ?? room.targetLanguage;
     updates.push('direction = ?');
-    values.push(data.direction);
+    values.push(languagesToDirection(srcLang, tgtLang));
   }
   if (data.isPublic !== undefined) {
     updates.push('is_public = ?');
@@ -249,10 +314,26 @@ export function getAllRooms(): DbRoom[] {
 }
 
 function mapRoomRow(row: any): DbRoom {
+  // Handle migration: if source_language/target_language are null, derive from direction
+  let sourceLanguage: LanguageCode = row.source_language || 'en';
+  let targetLanguage: LanguageCode = row.target_language || 'es';
+
+  if (!row.source_language || !row.target_language) {
+    if (row.direction === 'es-to-en') {
+      sourceLanguage = 'es';
+      targetLanguage = 'en';
+    } else if (row.direction === 'en-to-es') {
+      sourceLanguage = 'en';
+      targetLanguage = 'es';
+    }
+  }
+
   return {
     id: row.id,
     slug: row.slug,
     name: row.name,
+    sourceLanguage,
+    targetLanguage,
     direction: row.direction as TranslationDirection,
     isPublic: row.is_public === 1,
     ownerId: row.owner_id,

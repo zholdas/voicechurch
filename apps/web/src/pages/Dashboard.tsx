@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { roomsApi } from '../lib/api';
-import type { RoomInfo, TranslationDirection } from '../lib/types';
+import type { RoomInfo, LanguageCode } from '../lib/types';
+import { SUPPORTED_LANGUAGES, getLanguageInfo } from '../lib/types';
 import QRCodeDisplay from '../components/QRCodeDisplay';
 
 export default function Dashboard() {
@@ -19,7 +20,8 @@ export default function Dashboard() {
   const [newRoom, setNewRoom] = useState({
     name: '',
     slug: '',
-    direction: 'es-to-en' as TranslationDirection,
+    sourceLanguage: 'en' as LanguageCode,
+    targetLanguage: 'es' as LanguageCode,
     isPublic: false,
   });
 
@@ -51,11 +53,24 @@ export default function Dashboard() {
   async function handleCreateRoom(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    // Validate that source and target languages are different
+    if (newRoom.sourceLanguage === newRoom.targetLanguage) {
+      setError('Source and target languages must be different');
+      return;
+    }
+
     setIsCreating(true);
 
     try {
       await roomsApi.createRoom(newRoom);
-      setNewRoom({ name: '', slug: '', direction: 'es-to-en', isPublic: false });
+      setNewRoom({
+        name: '',
+        slug: '',
+        sourceLanguage: 'en',
+        targetLanguage: 'es',
+        isPublic: false,
+      });
       setShowCreateForm(false);
       await loadRooms();
     } catch (err) {
@@ -94,6 +109,13 @@ export default function Dashboard() {
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .slice(0, 50);
+  }
+
+  // Format language display
+  function formatLanguages(sourceLanguage: LanguageCode, targetLanguage: LanguageCode): string {
+    const srcInfo = getLanguageInfo(sourceLanguage);
+    const tgtInfo = getLanguageInfo(targetLanguage);
+    return `${srcInfo?.name || sourceLanguage} → ${tgtInfo?.name || targetLanguage}`;
   }
 
   if (authLoading) {
@@ -203,24 +225,62 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Translation Direction
-                </label>
-                <select
-                  value={newRoom.direction}
-                  onChange={(e) =>
-                    setNewRoom({
-                      ...newRoom,
-                      direction: e.target.value as TranslationDirection,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="es-to-en">Spanish → English</option>
-                  <option value="en-to-es">English → Spanish</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Source Language (Speaker)
+                  </label>
+                  <select
+                    value={newRoom.sourceLanguage}
+                    onChange={(e) =>
+                      setNewRoom({
+                        ...newRoom,
+                        sourceLanguage: e.target.value as LanguageCode,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name} ({lang.nativeName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Language (Listener)
+                  </label>
+                  <select
+                    value={newRoom.targetLanguage}
+                    onChange={(e) =>
+                      setNewRoom({
+                        ...newRoom,
+                        targetLanguage: e.target.value as LanguageCode,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {SUPPORTED_LANGUAGES.map((lang) => (
+                      <option key={lang.code} value={lang.code}>
+                        {lang.name} ({lang.nativeName})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              <p className="text-sm text-gray-500">
+                Listeners will hear speech in{' '}
+                <strong>
+                  {getLanguageInfo(newRoom.targetLanguage)?.name || newRoom.targetLanguage}
+                </strong>{' '}
+                based on{' '}
+                <strong>
+                  {getLanguageInfo(newRoom.sourceLanguage)?.name || newRoom.sourceLanguage}
+                </strong>{' '}
+                input
+              </p>
 
               <div className="flex items-center gap-2">
                 <input
@@ -299,26 +359,18 @@ export default function Dashboard() {
                         : 'bg-gray-100 text-gray-700'
                     }`}
                   >
-                    {room.isPublic ? '🌐 Public' : '🔒 Private'}
+                    {room.isPublic ? 'Public' : 'Private'}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                  <span>
-                    {room.direction === 'es-to-en'
-                      ? 'Spanish → English'
-                      : 'English → Spanish'}
-                  </span>
+                  <span>{formatLanguages(room.sourceLanguage, room.targetLanguage)}</span>
                   <span>{room.listenerCount} listeners</span>
                 </div>
 
                 {/* QR Code */}
                 <div className="mb-4">
-                  <QRCodeDisplay
-                    roomId={room.id}
-                    qrImageUrl={room.qrImageUrl}
-                    compact
-                  />
+                  <QRCodeDisplay roomId={room.id} qrImageUrl={room.qrImageUrl} compact />
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -330,13 +382,13 @@ export default function Dashboard() {
                     }
                     className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
-                    📋 Copy Link
+                    Copy Link
                   </button>
                   <Link
                     to={`/room/${room.slug}/broadcast`}
                     className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
-                    🎙️ Broadcast
+                    Broadcast
                   </Link>
                   <button
                     onClick={() => handleTogglePublic(room)}
@@ -348,7 +400,7 @@ export default function Dashboard() {
                     onClick={() => handleDeleteRoom(room.id, room.name)}
                     className="px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
                   >
-                    🗑️ Delete
+                    Delete
                   </button>
                 </div>
               </div>
