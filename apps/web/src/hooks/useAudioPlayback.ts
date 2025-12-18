@@ -89,6 +89,9 @@ export function useAudioPlayback() {
         processQueue();
       }, (duration + 3) * 1000);
 
+      // Ensure volume is at max before playing real audio
+      audio.volume = 1;
+
       setIsPlaying(true);
       const playPromise = audio.play();
       if (playPromise) {
