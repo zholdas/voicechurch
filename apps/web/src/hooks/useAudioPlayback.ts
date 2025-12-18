@@ -152,18 +152,18 @@ export function useAudioPlayback() {
       // This MUST happen synchronously in the user gesture handler
       audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAGAAGn9AAAIgAANP8AAABMQWV1AMaYYjHn/EQQA//NAxAAAA0gAM/gAABDAnz8VHf/iB//0TA4PjH/+OP/Tg+H7/u/s2f+P/+1LEQgPAABpBwAAACABBSHgAAABAMBAYE/HzVcnXaHOchyP4fEpHVHf/PJR87VHP/xERTMl+f7v8REVX/+1DEVQAAADSAHgAAIAAA0goAAARlQAMQAAAABBDJAAGAABA5FsREZFLqbVqgZWLUBKVqWKFQ3/i0kYKk+RpZq+r6rv+T6NckyqAqqqv/+2DEWQPAAAGkHAAACAAN4OAAAAC3Av/AiIKgiIg1gAB/xEDAQQCAARAXIuJ+LiZZf8REOQhiZmFLr39v0Pu/pppFMIgMx/rWkSEYP/7UMRwAcAAAaQAAAAgAADSAAAAEHnEPP46v9V9Wm0fRrv2b//pZNPsQMf/qxTJhwXH/4gZIH/yBsBh+XZkCB/8QMbL8vsZ';
 
-      // Android Chrome requires muted=true for initial autoplay unlock
-      audio.muted = true;
-      audio.volume = 0;
+      // CRITICAL: Play actual audio (NOT muted) to "warm up" the audio element
+      // Android Chrome requires real playback - muted playback doesn't count as user gesture
+      audio.volume = 0.01; // Very low but NOT muted
 
       const unlockPromise = audio.play();
       if (unlockPromise) {
         unlockPromise
           .then(() => {
             audio.pause();
-            audio.muted = false;
             audio.volume = 1;
             audio.currentTime = 0;
+            console.log('[TTS] Audio element warmed up successfully');
           })
           .catch((err) => {
             console.warn('[TTS] Audio unlock failed:', err);
