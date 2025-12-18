@@ -122,9 +122,14 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-slate-500 text-sm">
-            © 2025 WordBeacon. All rights reserved.
-          </p>
+          <div className="text-center md:text-left">
+            <p className="text-slate-500 text-sm">
+              © 2025 WordBeacon. All rights reserved.
+            </p>
+            <p className="text-slate-600 text-xs mt-1">
+              Version {import.meta.env.VITE_COMMIT_SHA || 'dev'}
+            </p>
+          </div>
           <div className="flex items-center gap-4">
             <a
               href="#"
