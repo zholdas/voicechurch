@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Broadcast from './pages/Broadcast';
 import Listen from './pages/Listen';
+import JoinRoom from './pages/JoinRoom';
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/join" element={<JoinRoom />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/broadcast" element={<Broadcast />} />
         <Route path="/room/:roomId" element={<Listen />} />

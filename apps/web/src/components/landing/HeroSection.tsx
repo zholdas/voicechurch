@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export default function HeroSection() {
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -31,6 +33,12 @@ export default function HeroSection() {
               >
                 Schedule Demo
               </button>
+              <Link
+                to="/join"
+                className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-center"
+              >
+                Join Room
+              </Link>
               <button
                 onClick={() => scrollToSection('how-it-works')}
                 className="px-6 py-3 bg-transparent border border-slate-500 text-white font-semibold rounded-lg hover:bg-slate-700 transition-colors"

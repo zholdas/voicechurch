@@ -43,6 +43,12 @@ export default function Navbar() {
             >
               FAQ
             </button>
+            <Link
+              to="/join"
+              className="text-green-600 hover:text-green-700 text-sm font-medium"
+            >
+              Join Room
+            </Link>
           </div>
         </div>
         <div className="flex items-center gap-4">
