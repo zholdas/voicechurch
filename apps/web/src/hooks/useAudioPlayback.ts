@@ -13,6 +13,9 @@ export function useAudioPlayback() {
   const getAudio = useCallback(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
+      // Set attributes for mobile compatibility (iOS Safari + Android Chrome)
+      audioRef.current.setAttribute('playsinline', 'true');
+      audioRef.current.setAttribute('webkit-playsinline', 'true');
     }
     return audioRef.current;
   }, []);
@@ -142,17 +145,31 @@ export function useAudioPlayback() {
     if (isEnabled) {
       stop();
     } else {
-      // Initialize audio element on user gesture (required for iOS Safari)
+      // Initialize audio element on user gesture (required for iOS Safari AND Android Chrome)
       const audio = getAudio();
-      // Play silent audio to unlock on iOS
+
+      // Play silent audio to unlock on iOS/Android
+      // This MUST happen synchronously in the user gesture handler
       audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRwmHAAAAAAD/+1DEAAAGAAGn9AAAIgAANP8AAABMQWV1AMaYYjHn/EQQA//NAxAAAA0gAM/gAABDAnz8VHf/iB//0TA4PjH/+OP/Tg+H7/u/s2f+P/+1LEQgPAABpBwAAACABBSHgAAABAMBAYE/HzVcnXaHOchyP4fEpHVHf/PJR87VHP/xERTMl+f7v8REVX/+1DEVQAAADSAHgAAIAAA0goAAARlQAMQAAAABBDJAAGAABA5FsREZFLqbVqgZWLUBKVqWKFQ3/i0kYKk+RpZq+r6rv+T6NckyqAqqqv/+2DEWQPAAAGkHAAACAAN4OAAAAC3Av/AiIKgiIg1gAB/xEDAQQCAARAXIuJ+LiZZf8REOQhiZmFLr39v0Pu/pppFMIgMx/rWkSEYP/7UMRwAcAAAaQAAAAgAADSAAAAEHnEPP46v9V9Wm0fRrv2b//pZNPsQMf/qxTJhwXH/4gZIH/yBsBh+XZkCB/8QMbL8vsZ';
+
+      // Android Chrome requires muted=true for initial autoplay unlock
+      audio.muted = true;
       audio.volume = 0;
-      audio.play().then(() => {
-        audio.pause();
-        audio.volume = 1;
-      }).catch(() => {
-        // Ignore errors from silent play
-      });
+
+      const unlockPromise = audio.play();
+      if (unlockPromise) {
+        unlockPromise
+          .then(() => {
+            audio.pause();
+            audio.muted = false;
+            audio.volume = 1;
+            audio.currentTime = 0;
+          })
+          .catch((err) => {
+            console.warn('[TTS] Audio unlock failed:', err);
+            // Still enable TTS - will try to play when user interacts again
+          });
+      }
     }
     setIsEnabled(!isEnabled);
   }, [isEnabled, stop, getAudio]);
