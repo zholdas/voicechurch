@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { roomsApi } from '../lib/api';
+import { roomsApi, billingApi, type SubscriptionInfo, type BroadcastLog } from '../lib/api';
 import type { RoomInfo, LanguageCode } from '../lib/types';
 import { SUPPORTED_LANGUAGES, getLanguageInfo } from '../lib/types';
 import QRCodeDisplay from '../components/QRCodeDisplay';
@@ -15,6 +15,13 @@ export default function Dashboard() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Billing state
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [broadcasts, setBroadcasts] = useState<BroadcastLog[]>([]);
+  const [isLoadingBilling, setIsLoadingBilling] = useState(true);
+  const [billingConfigured, setBillingConfigured] = useState(false);
+  const [showBroadcastHistory, setShowBroadcastHistory] = useState(false);
 
   // Form state
   const [newRoom, setNewRoom] = useState({
@@ -32,10 +39,11 @@ export default function Dashboard() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // Load rooms
+  // Load rooms and billing info
   useEffect(() => {
     if (isAuthenticated) {
       loadRooms();
+      loadBillingInfo();
     }
   }, [isAuthenticated]);
 
@@ -48,6 +56,53 @@ export default function Dashboard() {
     } finally {
       setIsLoadingRooms(false);
     }
+  }
+
+  async function loadBillingInfo() {
+    try {
+      // Check if billing is configured
+      const status = await billingApi.getStatus();
+      setBillingConfigured(status.configured);
+
+      if (status.configured) {
+        // Load subscription info
+        const subData = await billingApi.getSubscription();
+        setSubscription(subData);
+
+        // Load recent broadcasts
+        const broadcastData = await billingApi.getBroadcasts(10, 0);
+        setBroadcasts(broadcastData.broadcasts);
+      }
+    } catch (err) {
+      console.error('Failed to load billing info:', err);
+    } finally {
+      setIsLoadingBilling(false);
+    }
+  }
+
+  async function handleManageSubscription() {
+    try {
+      const { portalUrl } = await billingApi.createPortal();
+      window.location.href = portalUrl;
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to open subscription portal');
+    }
+  }
+
+  function formatDate(timestamp: number): string {
+    return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
+  function formatDuration(minutes: number | null): string {
+    if (!minutes) return '-';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   }
 
   async function handleCreateRoom(e: React.FormEvent) {
@@ -159,11 +214,158 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Subscription Card */}
+        {billingConfigured && !isLoadingBilling && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Subscription</h2>
+                {subscription?.status === 'none' || !subscription?.plan ? (
+                  <div>
+                    <p className="text-gray-600">No active subscription</p>
+                    {subscription?.canStartTrial && (
+                      <p className="text-sm text-green-600 mt-1">
+                        Start your 60-day free trial today!
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-gray-600">
+                      <span className="font-medium text-blue-600">{subscription.plan.name}</span>
+                      {' '}plan
+                      <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                        subscription.status === 'active'
+                          ? 'bg-green-100 text-green-700'
+                          : subscription.status === 'trialing'
+                          ? 'bg-blue-100 text-blue-700'
+                          : subscription.status === 'past_due'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {subscription.status === 'trialing' ? 'trial' : subscription.status}
+                      </span>
+                    </p>
+                    {subscription.status === 'trialing' && subscription.trialEndsAt ? (
+                      <p className="text-sm text-blue-600 mt-1">
+                        Trial ends {formatDate(subscription.trialEndsAt)}
+                      </p>
+                    ) : subscription.currentPeriodEnd && (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Renews {formatDate(subscription.currentPeriodEnd)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {subscription?.status !== 'none' && subscription?.plan ? (
+                <button
+                  onClick={handleManageSubscription}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Manage Subscription
+                </button>
+              ) : (
+                <Link
+                  to="/pricing"
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  {subscription?.canStartTrial ? 'Start Free Trial' : 'Choose a Plan'}
+                </Link>
+              )}
+            </div>
+
+            {/* Usage Bar */}
+            {subscription?.usage && subscription.plan && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="text-gray-600">
+                    Minutes used: {subscription.usage.minutesUsed} / {subscription.usage.minutesLimit}
+                  </span>
+                  <span className="text-gray-600">
+                    {subscription.usage.minutesRemaining} remaining
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      subscription.usage.percentUsed >= 90
+                        ? 'bg-red-500'
+                        : subscription.usage.percentUsed >= 75
+                        ? 'bg-yellow-500'
+                        : 'bg-blue-500'
+                    }`}
+                    style={{ width: `${Math.min(subscription.usage.percentUsed, 100)}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-3 text-sm text-gray-500">
+                  <span>
+                    Max listeners: {subscription.plan.maxListeners}
+                  </span>
+                  <span>
+                    Languages: {subscription.plan.maxLanguages}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Broadcast History Toggle */}
+            {broadcasts.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowBroadcastHistory(!showBroadcastHistory)}
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                >
+                  {showBroadcastHistory ? 'Hide' : 'Show'} broadcast history
+                  <svg
+                    className={`w-4 h-4 transition-transform ${showBroadcastHistory ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {showBroadcastHistory && (
+                  <div className="mt-4 space-y-2">
+                    {broadcasts.map((broadcast) => (
+                      <div
+                        key={broadcast.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
+                      >
+                        <div>
+                          <span className="font-medium">{broadcast.roomName}</span>
+                          <span className="text-gray-500 ml-2">
+                            {formatDate(broadcast.startedAt)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-gray-600">
+                          <span>{formatDuration(broadcast.durationMinutes)}</span>
+                          <span>{broadcast.peakListeners} listeners</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Page header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-bold text-gray-900">My Rooms</h1>
           <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
+            onClick={() => {
+              // If billing is configured and user has no subscription, redirect to pricing
+              if (billingConfigured && subscription?.status === 'none') {
+                navigate('/pricing');
+              } else {
+                setShowCreateForm(!showCreateForm);
+              }
+            }}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             + Create Room

@@ -3,6 +3,13 @@ import type { Room, ExtendedWebSocket, ServerMessage, LanguageCode } from './typ
 import { languagesToDirection } from './types.js';
 import * as db from '../db/index.js';
 
+// Map of active broadcast timers for usage tracking
+const broadcastTimers = new Map<string, NodeJS.Timeout>();
+// Map of room ID to broadcast log ID
+const activeBroadcastLogs = new Map<string, string>();
+// Map of room ID to peak listeners
+const peakListeners = new Map<string, number>();
+
 // In-memory room storage (includes both persistent and temporary rooms)
 const rooms = new Map<string, Room>();
 
@@ -247,7 +254,7 @@ export function deleteRoom(roomId: string): boolean {
   return false;
 }
 
-export function addBroadcaster(roomId: string, ws: ExtendedWebSocket): boolean {
+export function addBroadcaster(roomId: string, ws: ExtendedWebSocket, userId?: string): boolean {
   const room = rooms.get(roomId);
   if (!room) return false;
 
@@ -259,12 +266,18 @@ export function addBroadcaster(roomId: string, ws: ExtendedWebSocket): boolean {
   room.isActive = true;
   ws.roomId = roomId;
   ws.role = 'broadcaster';
+  ws.userId = userId;
+
+  // Start broadcast tracking if user is authenticated
+  if (userId) {
+    startBroadcastTracking(roomId, userId);
+  }
 
   // Notify listeners that broadcast started
   broadcastToListeners(roomId, { type: 'broadcast_started' });
   notifyListenerCount(roomId);
 
-  console.log(`Broadcaster joined room: ${roomId}`);
+  console.log(`Broadcaster joined room: ${roomId}${userId ? ` (user: ${userId})` : ''}`);
   return true;
 }
 
@@ -275,6 +288,11 @@ export function addListener(roomId: string, ws: ExtendedWebSocket): boolean {
   room.listeners.add(ws);
   ws.roomId = roomId;
   ws.role = 'listener';
+
+  // Update peak listeners if broadcasting
+  if (room.isActive) {
+    updatePeakListeners(roomId);
+  }
 
   notifyListenerCount(roomId);
 
@@ -292,6 +310,9 @@ export function removeClient(ws: ExtendedWebSocket): void {
   if (role === 'broadcaster') {
     room.broadcaster = null;
     room.isActive = false;
+
+    // Stop broadcast tracking
+    stopBroadcastTracking(roomId);
 
     // Notify listeners that broadcast ended
     broadcastToListeners(roomId, { type: 'broadcast_ended' });
@@ -463,5 +484,128 @@ export function getRoomWithStatus(slugOrId: string): {
     listenerCount: room.listeners.size,
     qrId: room.qrId,
     qrImageUrl: room.qrImageUrl,
+  };
+}
+
+// ============================================
+// Broadcast Tracking Functions
+// ============================================
+
+// Start tracking a broadcast (called when broadcaster joins)
+export function startBroadcastTracking(roomId: string, userId: string): void {
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  // Create broadcast log
+  const log = db.createBroadcastLog({
+    roomId,
+    userId,
+    sourceLanguage: room.sourceLanguage,
+    targetLanguage: room.targetLanguage,
+  });
+
+  activeBroadcastLogs.set(roomId, log.id);
+  peakListeners.set(roomId, room.listeners.size);
+
+  // Start usage timer (increment every minute)
+  const timer = setInterval(() => {
+    const usage = db.incrementUsage(userId, 1);
+    if (usage) {
+      const subscription = db.getActiveSubscription(userId);
+      const plan = subscription ? db.getPlanById(subscription.planId) : null;
+
+      if (plan && usage.minutesUsed >= plan.minutesPerMonth) {
+        // Minutes exceeded - notify broadcaster and stop
+        const broadcaster = room.broadcaster;
+        if (broadcaster && broadcaster.readyState === broadcaster.OPEN) {
+          broadcaster.send(JSON.stringify({
+            type: 'broadcast_stopped',
+            reason: 'MINUTES_EXCEEDED',
+          }));
+        }
+        stopBroadcastTracking(roomId);
+      } else if (plan) {
+        const remaining = plan.minutesPerMonth - usage.minutesUsed;
+        // Warn when 5 or fewer minutes remaining
+        if (remaining <= 5 && remaining > 0) {
+          const broadcaster = room.broadcaster;
+          if (broadcaster && broadcaster.readyState === broadcaster.OPEN) {
+            broadcaster.send(JSON.stringify({
+              type: 'usage_warning',
+              minutesRemaining: remaining,
+            }));
+          }
+        }
+      }
+    }
+  }, 60000); // Every minute
+
+  broadcastTimers.set(roomId, timer);
+  console.log(`Broadcast tracking started for room ${roomId}, user ${userId}`);
+}
+
+// Stop tracking a broadcast (called when broadcaster leaves or minutes exceeded)
+export function stopBroadcastTracking(roomId: string): void {
+  // Clear timer
+  const timer = broadcastTimers.get(roomId);
+  if (timer) {
+    clearInterval(timer);
+    broadcastTimers.delete(roomId);
+  }
+
+  // End broadcast log
+  const logId = activeBroadcastLogs.get(roomId);
+  if (logId) {
+    const peak = peakListeners.get(roomId) || 0;
+    db.endBroadcastLog(logId, peak);
+    activeBroadcastLogs.delete(roomId);
+    peakListeners.delete(roomId);
+    console.log(`Broadcast tracking stopped for room ${roomId}, peak listeners: ${peak}`);
+  }
+}
+
+// Update peak listeners count
+export function updatePeakListeners(roomId: string): void {
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  const current = room.listeners.size;
+  const peak = peakListeners.get(roomId) || 0;
+
+  if (current > peak) {
+    peakListeners.set(roomId, current);
+
+    // Also update in the log
+    const logId = activeBroadcastLogs.get(roomId);
+    if (logId) {
+      db.updateBroadcastLogPeakListeners(logId, current);
+    }
+  }
+}
+
+// Check if user has active subscription with remaining minutes
+export function checkUserSubscription(userId: string): {
+  hasSubscription: boolean;
+  minutesRemaining: number;
+  maxListeners: number;
+} {
+  const subscription = db.getActiveSubscription(userId);
+  if (!subscription) {
+    return { hasSubscription: false, minutesRemaining: 0, maxListeners: 0 };
+  }
+
+  const plan = db.getPlanById(subscription.planId);
+  if (!plan) {
+    return { hasSubscription: false, minutesRemaining: 0, maxListeners: 0 };
+  }
+
+  const usage = db.getCurrentUsage(userId);
+  const minutesUsed = usage?.minutesUsed || 0;
+  const minutesRemaining = Math.max(0, plan.minutesPerMonth - minutesUsed);
+
+  return {
+    hasSubscription: true,
+    minutesRemaining,
+    maxListeners: plan.maxListeners,
   };
 }

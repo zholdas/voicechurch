@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams, useParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioCapture } from '../hooks/useAudioCapture';
 import ConnectionStatus from '../components/ConnectionStatus';
 import ShareLink from '../components/ShareLink';
 import AudioCapture from '../components/AudioCapture';
-import { roomsApi } from '../lib/api';
+import { roomsApi, billingApi, type SubscriptionInfo } from '../lib/api';
 import type { ServerMessage, RoomInfo, LanguageCode } from '../lib/types';
 import { SUPPORTED_LANGUAGES, getLanguageName } from '../lib/types';
 
 export default function Broadcast() {
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const paramName = searchParams.get('name');
   const paramSlug = searchParams.get('slug');
   const paramSourceLang = searchParams.get('source') as LanguageCode | null;
@@ -30,6 +31,12 @@ export default function Broadcast() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [roomReady, setRoomReady] = useState(false);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
+
+  // Billing state
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [minutesRemaining, setMinutesRemaining] = useState<number | null>(null);
+  const [usageWarning, setUsageWarning] = useState<number | null>(null);
+  const [broadcastStopped, setBroadcastStopped] = useState<string | null>(null);
 
   const handleMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
@@ -57,6 +64,14 @@ export default function Broadcast() {
       case 'error':
         setErrorMessage(message.message);
         break;
+      case 'usage_warning':
+        setUsageWarning(message.minutesRemaining);
+        setMinutesRemaining(message.minutesRemaining);
+        break;
+      case 'broadcast_stopped':
+        setBroadcastStopped(message.reason);
+        // stopRecording will be called via useEffect when broadcastStopped changes
+        break;
     }
   }, []);
 
@@ -79,6 +94,22 @@ export default function Broadcast() {
   useEffect(() => {
     connect();
   }, [connect]);
+
+  // Load subscription info
+  useEffect(() => {
+    billingApi.getStatus().then((status) => {
+      if (status.configured) {
+        billingApi.getSubscription().then(setSubscription).catch(console.error);
+      }
+    }).catch(console.error);
+  }, []);
+
+  // Stop recording when broadcast is stopped by server
+  useEffect(() => {
+    if (broadcastStopped && isRecording) {
+      stopRecording();
+    }
+  }, [broadcastStopped, isRecording, stopRecording]);
 
   // Fetch room info for persistent rooms (to get QR code data)
   useEffect(() => {
@@ -149,6 +180,39 @@ export default function Broadcast() {
           </div>
         )}
 
+        {/* Broadcast stopped warning */}
+        {broadcastStopped && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p className="font-semibold">Broadcast stopped</p>
+            <p className="text-sm mt-1">
+              {broadcastStopped === 'MINUTES_EXCEEDED'
+                ? 'You have exceeded your monthly minutes limit. Please upgrade your plan to continue broadcasting.'
+                : 'You have exceeded the maximum number of concurrent listeners for your plan.'}
+            </p>
+            <Link
+              to="/pricing"
+              className="inline-block mt-3 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Upgrade Plan
+            </Link>
+          </div>
+        )}
+
+        {/* Usage warning */}
+        {usageWarning !== null && usageWarning <= 5 && !broadcastStopped && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg">
+            <p className="font-semibold flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Low minutes remaining
+            </p>
+            <p className="text-sm mt-1">
+              Only {usageWarning} minute{usageWarning !== 1 ? 's' : ''} remaining in your current billing period.
+            </p>
+          </div>
+        )}
+
         {/* Room name and languages */}
         <div className="mb-4 text-center">
           {roomName && (
@@ -198,6 +262,42 @@ export default function Broadcast() {
             {isRecording ? 'Broadcasting Live' : 'Ready to Broadcast'}
           </h2>
 
+          {/* Subscription usage indicator */}
+          {subscription?.usage && subscription.plan && (
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-gray-600">
+                  {subscription.plan.name} Plan
+                </span>
+                <span className={`font-medium ${
+                  subscription.usage.percentUsed >= 90
+                    ? 'text-red-600'
+                    : subscription.usage.percentUsed >= 75
+                    ? 'text-yellow-600'
+                    : 'text-green-600'
+                }`}>
+                  {subscription.usage.minutesRemaining} min remaining
+                </span>
+              </div>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    subscription.usage.percentUsed >= 90
+                      ? 'bg-red-500'
+                      : subscription.usage.percentUsed >= 75
+                      ? 'bg-yellow-500'
+                      : 'bg-green-500'
+                  }`}
+                  style={{ width: `${Math.min(subscription.usage.percentUsed, 100)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+                <span>Max {subscription.plan.maxListeners} listeners</span>
+                <span>{subscription.usage.minutesUsed} / {subscription.usage.minutesLimit} min used</span>
+              </div>
+            </div>
+          )}
+
           <AudioCapture
             isRecording={isRecording}
             error={audioError}
@@ -211,6 +311,14 @@ export default function Broadcast() {
                 Speak clearly into your microphone. Your speech will be
                 translated to {getLanguageName(targetLanguage)} in real-time.
               </p>
+              {/* Real-time minutes indicator during broadcast */}
+              {minutesRemaining !== null && (
+                <p className={`mt-2 text-sm font-medium ${
+                  minutesRemaining <= 5 ? 'text-red-600' : 'text-gray-600'
+                }`}>
+                  {minutesRemaining} minute{minutesRemaining !== 1 ? 's' : ''} remaining
+                </p>
+              )}
             </div>
           )}
         </div>

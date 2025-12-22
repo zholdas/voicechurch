@@ -59,7 +59,10 @@ export type ServerMessage =
   | { type: 'broadcast_started' }
   | { type: 'broadcast_ended' }
   | { type: 'error'; code: string; message: string }
-  | { type: 'pong' };
+  | { type: 'pong' }
+  // Billing-related messages
+  | { type: 'usage_warning'; minutesRemaining: number }
+  | { type: 'broadcast_stopped'; reason: 'MINUTES_EXCEEDED' | 'LISTENERS_EXCEEDED' };
 
 export interface Room {
   id: string;
@@ -86,6 +89,7 @@ export interface ExtendedWebSocket extends WebSocket {
   roomId?: string;
   role?: 'broadcaster' | 'listener';
   isAlive?: boolean;
+  userId?: string;  // User ID for authenticated broadcasters (for tracking usage)
 }
 
 // Helper to convert direction to source/target languages

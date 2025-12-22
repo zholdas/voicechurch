@@ -10,6 +10,7 @@ import { setupPassport, passport } from './auth/passport.js';
 import { authRouter } from './auth/routes.js';
 import { roomsRouter } from './api/rooms.js';
 import { webhooksRouter } from './api/webhooks.js';
+import { billingRouter, createWebhookRouter } from './api/billing.js';
 import type { ExtendedWebSocket } from './websocket/types.js';
 
 // Log startup
@@ -33,6 +34,11 @@ app.use(cors({
   origin: config.frontendUrl || '*',
   credentials: true,
 }));
+
+// Stripe webhook needs raw body - must be BEFORE express.json()
+app.use('/webhooks/stripe', createWebhookRouter());
+
+// JSON parsing for all other routes
 app.use(express.json());
 
 // Session middleware
@@ -62,6 +68,10 @@ app.use('/api/rooms', roomsRouter);
 
 // Webhook routes
 app.use('/webhooks', webhooksRouter);
+
+// Billing API routes
+app.use('/api/billing', billingRouter);
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -40,6 +40,22 @@ export const config = {
     voiceNameEn: process.env.GOOGLE_TTS_VOICE_EN || 'en-US-Neural2-C',
     voiceNameEs: process.env.GOOGLE_TTS_VOICE_ES || 'es-ES-Neural2-A',
   },
+
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    // Price IDs for each plan (set in Stripe Dashboard)
+    prices: {
+      starterMonthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || '',
+      starterYearly: process.env.STRIPE_PRICE_STARTER_YEARLY || '',
+      growingMonthly: process.env.STRIPE_PRICE_GROWING_MONTHLY || '',
+      growingYearly: process.env.STRIPE_PRICE_GROWING_YEARLY || '',
+      multiplyingMonthly: process.env.STRIPE_PRICE_MULTIPLYING_MONTHLY || '',
+      multiplyingYearly: process.env.STRIPE_PRICE_MULTIPLYING_YEARLY || '',
+    },
+  },
+
+  appUrl: process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:5173',
 };
 
 export function validateConfig(): void {
@@ -76,4 +92,13 @@ export function validateConfig(): void {
   if (!config.googleTts.credentialsJson) {
     console.info('Info: Google Cloud TTS not configured. Set GOOGLE_CREDENTIALS_JSON for high-quality TTS.');
   }
+
+  // Info about optional Stripe
+  if (!config.stripe.secretKey) {
+    console.info('Info: Stripe not configured. Set STRIPE_SECRET_KEY to enable subscriptions.');
+  }
+}
+
+export function isStripeConfigured(): boolean {
+  return !!config.stripe.secretKey;
 }

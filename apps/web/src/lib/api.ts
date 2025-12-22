@@ -80,3 +80,84 @@ export const roomsApi = {
 
   getQRInfo: (id: string) => fetchApi<QRInfo>(`/api/rooms/${id}/qr`),
 };
+
+// Billing types
+export interface Plan {
+  id: string;
+  name: string;
+  priceMonthly: number;
+  priceYearly: number;
+  maxListeners: number;
+  maxLanguages: number;
+  minutesPerMonth: number;
+}
+
+export interface SubscriptionInfo {
+  status: 'active' | 'canceled' | 'past_due' | 'trialing' | 'none';
+  billingPeriod?: 'monthly' | 'yearly';
+  currentPeriodEnd?: number;
+  stripeCustomerId?: string;
+  canStartTrial?: boolean;
+  trialEndsAt?: number | null;
+  plan: {
+    id: string;
+    name: string;
+    maxListeners: number;
+    maxLanguages: number;
+    minutesPerMonth: number;
+  } | null;
+  usage: {
+    minutesUsed: number;
+    minutesRemaining: number;
+    minutesLimit: number;
+    percentUsed: number;
+  } | null;
+}
+
+export interface BroadcastLog {
+  id: string;
+  roomId: string;
+  roomName: string;
+  startedAt: number;
+  endedAt: number | null;
+  durationMinutes: number | null;
+  peakListeners: number;
+  sourceLanguage: string;
+  targetLanguage: string;
+}
+
+export interface BroadcastsResponse {
+  broadcasts: BroadcastLog[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// Billing API
+export const billingApi = {
+  // Get all available plans
+  getPlans: () => fetchApi<{ plans: Plan[] }>('/api/billing/plans'),
+
+  // Get current subscription and usage info
+  getSubscription: () => fetchApi<SubscriptionInfo>('/api/billing/subscription'),
+
+  // Create checkout session for new subscription
+  createCheckout: (planId: string, billingPeriod: 'monthly' | 'yearly') =>
+    fetchApi<{ checkoutUrl: string; withTrial?: boolean }>('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ planId, billingPeriod }),
+    }),
+
+  // Create portal session for managing subscription
+  createPortal: () =>
+    fetchApi<{ portalUrl: string }>('/api/billing/portal', {
+      method: 'POST',
+    }),
+
+  // Get broadcast history
+  getBroadcasts: (limit = 20, offset = 0) =>
+    fetchApi<BroadcastsResponse>(`/api/billing/broadcasts?limit=${limit}&offset=${offset}`),
+
+  // Check if billing is configured
+  getStatus: () => fetchApi<{ configured: boolean }>('/api/billing/status'),
+};
