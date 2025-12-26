@@ -281,13 +281,18 @@ export function addBroadcaster(roomId: string, ws: ExtendedWebSocket, userId?: s
   return true;
 }
 
-export function addListener(roomId: string, ws: ExtendedWebSocket): boolean {
+export function addListener(
+  roomId: string,
+  ws: ExtendedWebSocket,
+  targetLanguage: LanguageCode
+): boolean {
   const room = rooms.get(roomId);
   if (!room) return false;
 
   room.listeners.add(ws);
   ws.roomId = roomId;
   ws.role = 'listener';
+  ws.targetLanguage = targetLanguage;
 
   // Update peak listeners if broadcasting
   if (room.isActive) {
@@ -296,7 +301,7 @@ export function addListener(roomId: string, ws: ExtendedWebSocket): boolean {
 
   notifyListenerCount(roomId);
 
-  console.log(`Listener joined room: ${roomId}, total: ${room.listeners.size}`);
+  console.log(`Listener joined room: ${roomId}, language: ${targetLanguage}, total: ${room.listeners.size}`);
   return true;
 }
 
@@ -351,6 +356,38 @@ export function broadcastToListeners(roomId: string, message: ServerMessage): vo
   for (const listener of room.listeners) {
     if (listener.readyState === listener.OPEN) {
       listener.send(data);
+    }
+  }
+}
+
+// Get unique languages of active listeners in a room
+export function getUniqueListenerLanguages(roomId: string): LanguageCode[] {
+  const room = rooms.get(roomId);
+  if (!room) return [];
+
+  const languages = new Set<LanguageCode>();
+  for (const listener of room.listeners) {
+    if (listener.readyState === listener.OPEN && listener.targetLanguage) {
+      languages.add(listener.targetLanguage);
+    }
+  }
+  return Array.from(languages);
+}
+
+// Send personalized messages to listeners by language
+export function sendToListenersByLanguage(
+  roomId: string,
+  messagesPerLanguage: Map<LanguageCode, ServerMessage>
+): void {
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  for (const listener of room.listeners) {
+    if (listener.readyState !== listener.OPEN) continue;
+
+    const lang = listener.targetLanguage;
+    if (lang && messagesPerLanguage.has(lang)) {
+      listener.send(JSON.stringify(messagesPerLanguage.get(lang)!));
     }
   }
 }

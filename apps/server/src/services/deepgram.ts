@@ -1,9 +1,15 @@
 import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import { config } from '../config.js';
-import { broadcastToListeners, setDeepgramConnection, getRoom } from '../websocket/rooms.js';
+import {
+  broadcastToListeners,
+  setDeepgramConnection,
+  getRoom,
+  getUniqueListenerLanguages,
+  sendToListenersByLanguage,
+} from '../websocket/rooms.js';
 import { translate, translateWithDebounce, cancelPendingTranslation } from './translation.js';
 import { synthesizeSpeech, isGoogleTtsConfigured } from './google-tts.js';
-import type { ServerMessage } from '../websocket/types.js';
+import type { ServerMessage, LanguageCode } from '../websocket/types.js';
 import { getLanguageConfig } from '../languages.js';
 
 export function createDeepgramConnection(roomId: string): void {
@@ -45,49 +51,64 @@ export function createDeepgramConnection(roomId: string): void {
 
     const isFinal = data.is_final;
     const timestamp = Date.now();
-    const { sourceLanguage, targetLanguage } = room;
+    const { sourceLanguage } = room;
+
+    // Get unique languages of active listeners
+    const targetLanguages = getUniqueListenerLanguages(roomId);
+    if (targetLanguages.length === 0) return;
 
     if (isFinal) {
-      // For final results, translate immediately
+      // For final results, translate to all unique listener languages in parallel
       cancelPendingTranslation(roomId);
-      const translated = await translate(transcript, sourceLanguage, targetLanguage);
 
-      // Generate TTS audio if Google TTS is configured
-      let audioBase64: string | undefined;
-      if (isGoogleTtsConfigured()) {
-        try {
-          const audioBuffer = await synthesizeSpeech(translated, targetLanguage);
-          if (audioBuffer) {
-            audioBase64 = audioBuffer.toString('base64');
+      const results = await Promise.all(
+        targetLanguages.map(async (targetLang) => {
+          const translated = await translate(transcript, sourceLanguage, targetLang);
+
+          // Generate TTS audio if Google TTS is configured
+          let audioBase64: string | undefined;
+          if (isGoogleTtsConfigured()) {
+            try {
+              const audioBuffer = await synthesizeSpeech(translated, targetLang);
+              if (audioBuffer) {
+                audioBase64 = audioBuffer.toString('base64');
+              }
+            } catch (error) {
+              console.error(`TTS error for ${targetLang} in room ${roomId}:`, error);
+            }
           }
-        } catch (error) {
-          console.error(`TTS error for room ${roomId}:`, error);
-        }
-      }
 
+          return {
+            targetLang,
+            message: {
+              type: 'transcript' as const,
+              source: transcript,
+              translated,
+              isFinal: true,
+              timestamp,
+              audio: audioBase64,
+            },
+          };
+        })
+      );
+
+      // Build map of messages per language and send to listeners
+      const messagesMap = new Map<LanguageCode, ServerMessage>();
+      for (const { targetLang, message } of results) {
+        messagesMap.set(targetLang, message);
+      }
+      sendToListenersByLanguage(roomId, messagesMap);
+    } else {
+      // For interim results, send source text without translation (to save API calls)
       const message: ServerMessage = {
         type: 'transcript',
         source: transcript,
-        translated,
-        isFinal: true,
+        translated: transcript, // No translation for interim
+        isFinal: false,
         timestamp,
-        audio: audioBase64,
       };
 
       broadcastToListeners(roomId, message);
-    } else {
-      // For interim results, debounce translation (300ms)
-      translateWithDebounce(roomId, transcript, sourceLanguage, targetLanguage, 300, (translated) => {
-        const message: ServerMessage = {
-          type: 'transcript',
-          source: transcript,
-          translated,
-          isFinal: false,
-          timestamp,
-        };
-
-        broadcastToListeners(roomId, message);
-      });
     }
   });
 

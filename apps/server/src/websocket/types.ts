@@ -19,7 +19,12 @@ export type ClientMessage =
       // Old: direction (kept for backwards compatibility)
       direction?: TranslationDirection;
     }
-  | { type: 'join_room'; roomId: string; role: 'broadcaster' | 'listener' }
+  | {
+      type: 'join_room';
+      roomId: string;
+      role: 'broadcaster' | 'listener';
+      targetLanguage?: LanguageCode; // Listener's preferred language
+    }
   | { type: 'end_broadcast' }
   | { type: 'ping' };
 
@@ -77,8 +82,8 @@ export interface Room {
   // Keep for backwards compatibility
   translationDirection: TranslationDirection;
   createdAt: Date;
-  broadcaster: WebSocket | null;
-  listeners: Set<WebSocket>;
+  broadcaster: ExtendedWebSocket | null;
+  listeners: Set<ExtendedWebSocket>;
   deepgramConnection: unknown;
   isActive: boolean;
   qrId: string | null;
@@ -90,6 +95,7 @@ export interface ExtendedWebSocket extends WebSocket {
   role?: 'broadcaster' | 'listener';
   isAlive?: boolean;
   userId?: string;  // User ID for authenticated broadcasters (for tracking usage)
+  targetLanguage?: LanguageCode;  // Listener's preferred translation language
 }
 
 // Helper to convert direction to source/target languages

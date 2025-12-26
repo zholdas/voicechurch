@@ -74,7 +74,7 @@ function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
       break;
 
     case 'join_room':
-      handleJoinRoom(ws, message.roomId, message.role);
+      handleJoinRoom(ws, message.roomId, message.role, message.targetLanguage);
       break;
 
     case 'end_broadcast':
@@ -153,7 +153,8 @@ function handleCreateRoom(
 function handleJoinRoom(
   ws: ExtendedWebSocket,
   roomIdOrSlug: string,
-  role: 'broadcaster' | 'listener'
+  role: 'broadcaster' | 'listener',
+  targetLanguage?: LanguageCode
 ): void {
   // Look up by ID first, then by slug
   const room = getRoom(roomIdOrSlug) || getRoomBySlug(roomIdOrSlug);
@@ -172,7 +173,11 @@ function handleJoinRoom(
     addBroadcaster(room.id, ws);
     // Don't create Deepgram connection yet - wait for audio
   } else {
-    addListener(room.id, ws);
+    // For listener: use specified language or fallback to room's target language
+    const listenerLang = (targetLanguage && isValidLanguageCode(targetLanguage))
+      ? targetLanguage
+      : room.targetLanguage;
+    addListener(room.id, ws, listenerLang);
   }
 
   const direction = languagesToDirection(room.sourceLanguage, room.targetLanguage);
@@ -184,7 +189,7 @@ function handleJoinRoom(
     listenerCount: room.listeners.size,
     roomName: room.name,
     sourceLanguage: room.sourceLanguage,
-    targetLanguage: room.targetLanguage,
+    targetLanguage: role === 'listener' ? (ws.targetLanguage || room.targetLanguage) : room.targetLanguage,
     direction,
   });
 

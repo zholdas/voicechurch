@@ -7,7 +7,8 @@ import { useAudioPlayback } from '../hooks/useAudioPlayback';
 import ConnectionStatus from '../components/ConnectionStatus';
 import TranscriptDisplay from '../components/TranscriptDisplay';
 import FontControls from '../components/FontControls';
-import type { ServerMessage } from '../lib/types';
+import type { ServerMessage, LanguageCode } from '../lib/types';
+import { SUPPORTED_LANGUAGES } from '../lib/types';
 
 // Calculate responsive base font size based on screen
 function getResponsiveFontSize(): number {
@@ -37,6 +38,8 @@ export default function Listen() {
   const [listenerCount, setListenerCount] = useState(0);
   const [fontSize, setFontSize] = useState(() => getResponsiveFontSize());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode | null>(null);
+  const [showLanguageSelector, setShowLanguageSelector] = useState(true);
 
   // Update font size on resize
   useEffect(() => {
@@ -138,15 +141,40 @@ export default function Listen() {
     connect();
   }, [connect]);
 
-  // Join room when connected
+  // Join room when connected and language is selected
   useEffect(() => {
-    if (isConnected && roomId) {
-      send({ type: 'join_room', roomId, role: 'listener' });
+    if (isConnected && roomId && selectedLanguage) {
+      send({ type: 'join_room', roomId, role: 'listener', targetLanguage: selectedLanguage });
+      setShowLanguageSelector(false);
     }
-  }, [isConnected, roomId, send]);
+  }, [isConnected, roomId, selectedLanguage, send]);
 
   return (
     <div className="listen-container bg-gray-100 flex flex-col">
+      {/* Language Selector Modal */}
+      {showLanguageSelector && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">Select your language</h2>
+            <p className="text-gray-600 mb-6">
+              Choose the language you want to hear the translation in:
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => setSelectedLanguage(lang.code)}
+                  className="p-4 border-2 border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition-all text-left"
+                >
+                  <div className="font-medium text-gray-900">{lang.nativeName}</div>
+                  <div className="text-sm text-gray-500">{lang.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white shadow-sm flex-shrink-0">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">

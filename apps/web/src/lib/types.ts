@@ -105,7 +105,12 @@ export type ClientMessage =
       targetLanguage?: LanguageCode;
       direction?: TranslationDirection;
     }
-  | { type: 'join_room'; roomId: string; role: 'broadcaster' | 'listener' }
+  | {
+      type: 'join_room';
+      roomId: string;
+      role: 'broadcaster' | 'listener';
+      targetLanguage?: LanguageCode; // Listener's preferred language
+    }
   | { type: 'end_broadcast' }
   | { type: 'ping' };
 
