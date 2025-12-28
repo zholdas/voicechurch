@@ -1,4 +1,4 @@
-export type LanguageCode = 'en' | 'es' | 'zh' | 'fr' | 'de' | 'da' | 'it';
+export type LanguageCode = 'en' | 'es' | 'zh' | 'fr' | 'de' | 'da' | 'it' | 'vi' | 'ja' | 'pt' | 'ru' | 'ko' | 'ar';
 
 export interface LanguageConfig {
   code: LanguageCode;
@@ -84,6 +84,66 @@ export const SUPPORTED_LANGUAGES: Record<LanguageCode, LanguageConfig> = {
     deeplTargetCode: 'it',
     googleTtsCode: 'it-IT',
     googleTtsVoice: 'it-IT-Neural2-A',
+  },
+  vi: {
+    code: 'vi',
+    name: 'Vietnamese',
+    nativeName: 'Tiếng Việt',
+    deepgramCode: 'vi',
+    deeplSourceCode: 'vi',
+    deeplTargetCode: 'vi',
+    googleTtsCode: 'vi-VN',
+    googleTtsVoice: 'vi-VN-Neural2-A',
+  },
+  ja: {
+    code: 'ja',
+    name: 'Japanese',
+    nativeName: '日本語',
+    deepgramCode: 'ja',
+    deeplSourceCode: 'ja',
+    deeplTargetCode: 'ja',
+    googleTtsCode: 'ja-JP',
+    googleTtsVoice: 'ja-JP-Neural2-B',
+  },
+  pt: {
+    code: 'pt',
+    name: 'Portuguese',
+    nativeName: 'Português',
+    deepgramCode: 'pt-BR',
+    deeplSourceCode: 'pt',
+    deeplTargetCode: 'pt-BR',
+    googleTtsCode: 'pt-BR',
+    googleTtsVoice: 'pt-BR-Neural2-A',
+  },
+  ru: {
+    code: 'ru',
+    name: 'Russian',
+    nativeName: 'Русский',
+    deepgramCode: 'ru',
+    deeplSourceCode: 'ru',
+    deeplTargetCode: 'ru',
+    googleTtsCode: 'ru-RU',
+    googleTtsVoice: 'ru-RU-Wavenet-A',
+  },
+  ko: {
+    code: 'ko',
+    name: 'Korean',
+    nativeName: '한국어',
+    deepgramCode: 'ko',
+    deeplSourceCode: 'ko',
+    deeplTargetCode: 'ko',
+    googleTtsCode: 'ko-KR',
+    googleTtsVoice: 'ko-KR-Neural2-A',
+  },
+  ar: {
+    code: 'ar',
+    name: 'Arabic',
+    nativeName: 'العربية',
+    deepgramCode: 'ar',
+    deeplSourceCode: 'ar',
+    deeplTargetCode: 'ar',
+    googleTtsCode: 'ar-XA',
+    googleTtsVoice: 'ar-XA-Wavenet-A',
   },
 };
 

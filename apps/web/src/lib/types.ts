@@ -1,5 +1,5 @@
 // Language codes supported by the system
-export type LanguageCode = 'en' | 'es' | 'zh' | 'fr' | 'de' | 'da' | 'it';
+export type LanguageCode = 'en' | 'es' | 'zh' | 'fr' | 'de' | 'da' | 'it' | 'vi' | 'ja' | 'pt' | 'ru' | 'ko' | 'ar';
 
 // Keep for backwards compatibility
 export type TranslationDirection = 'es-to-en' | 'en-to-es';
@@ -20,6 +20,12 @@ export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
   { code: 'de', name: 'German', nativeName: 'Deutsch' },
   { code: 'da', name: 'Danish', nativeName: 'Dansk' },
   { code: 'it', name: 'Italian', nativeName: 'Italiano' },
+  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
 ];
 
 // Helper to get language info
