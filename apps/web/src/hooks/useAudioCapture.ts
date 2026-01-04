@@ -60,101 +60,113 @@ export function useAudioCapture({ onAudioData }: UseAudioCaptureOptions) {
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
-  // iOS Safari: Use MediaRecorder approach (works with Bluetooth microphones)
-  const startWithMediaRecorder = useCallback(async (stream: MediaStream) => {
-    console.log('Using MediaRecorder approach for iOS Safari');
-
-    // Determine supported MIME type - iOS Safari prefers mp4
-    let mimeType = 'audio/mp4';
-    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-      mimeType = 'audio/webm;codecs=opus';
-    } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-      mimeType = 'audio/mp4';
-    } else if (MediaRecorder.isTypeSupported('audio/aac')) {
-      mimeType = 'audio/aac';
-    }
-
-    console.log(`MediaRecorder using MIME type: ${mimeType}`);
-
-    const mediaRecorder = new MediaRecorder(stream, { mimeType });
-    mediaRecorderRef.current = mediaRecorder;
-
-    mediaRecorder.ondataavailable = async (event) => {
-      if (event.data.size === 0) return;
-
-      try {
-        // Decode the compressed audio to PCM using AudioContext
-        const arrayBuffer = await event.data.arrayBuffer();
-
-        // Create a temporary AudioContext for decoding
-        const tempContext = new AudioContext();
-        try {
-          const audioBuffer = await tempContext.decodeAudioData(arrayBuffer);
-
-          // Get PCM data and resample to target rate
-          const channelData = audioBuffer.getChannelData(0);
-          const resampled = resample(channelData, audioBuffer.sampleRate, TARGET_SAMPLE_RATE);
-          const int16Data = float32ToInt16(resampled);
-
-          onAudioData(int16Data.buffer);
-        } finally {
-          await tempContext.close();
-        }
-      } catch (err) {
-        // Decoding errors are expected for some chunks, just log and continue
-        console.debug('MediaRecorder decode error (may be normal for partial chunks):', err);
-      }
-    };
-
-    mediaRecorder.onerror = (event) => {
-      console.error('MediaRecorder error:', event);
-    };
-
-    // Request data every 100ms for low latency
-    mediaRecorder.start(100);
-    setIsRecording(true);
-  }, [onAudioData]);
-
-  // Standard approach: ScriptProcessorNode (works on most desktop browsers)
-  const startWithScriptProcessor = useCallback(async (stream: MediaStream) => {
-    console.log('Using ScriptProcessorNode approach');
-
-    // Create AudioContext without specifying sample rate
-    // This allows the device to use its native rate
+  // Try AudioWorklet first (modern approach), fall back to ScriptProcessor
+  const startWithWebAudio = useCallback(async (stream: MediaStream) => {
+    // Create AudioContext - don't specify sample rate to allow native rate
     const audioContext = new AudioContext();
     audioContextRef.current = audioContext;
 
-    // Handle suspended state (critical for mobile browsers)
+    // Critical: Resume AudioContext immediately (iOS requirement)
     if (audioContext.state === 'suspended') {
       await audioContext.resume();
     }
 
     const actualSampleRate = audioContext.sampleRate;
-    console.log(`Audio capture started with sample rate: ${actualSampleRate}Hz`);
+    console.log(`Audio capture started with sample rate: ${actualSampleRate}Hz, state: ${audioContext.state}`);
 
     // Create source from microphone
     const source = audioContext.createMediaStreamSource(stream);
+    sourceRef.current = source;
 
-    // Create script processor for capturing audio
-    // Buffer size: 4096 samples, 1 input channel, 1 output channel
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
-    processorRef.current = processor;
+    // Try AudioWorklet first (better for iOS), fall back to ScriptProcessor
+    let useWorklet = false;
 
-    processor.onaudioprocess = (event) => {
-      const inputData = event.inputBuffer.getChannelData(0);
+    if (audioContext.audioWorklet && isIOSSafari()) {
+      try {
+        // Create inline AudioWorklet processor
+        const workletCode = `
+          class PCMProcessor extends AudioWorkletProcessor {
+            constructor() {
+              super();
+              this.bufferSize = 4096;
+              this.buffer = new Float32Array(this.bufferSize);
+              this.bufferIndex = 0;
+            }
 
-      // Resample to 16kHz if needed (for Deepgram)
-      const resampledData = resample(inputData, actualSampleRate, TARGET_SAMPLE_RATE);
-      const int16Data = float32ToInt16(resampledData);
+            process(inputs, outputs, parameters) {
+              const input = inputs[0];
+              if (!input || !input[0]) return true;
 
-      onAudioData(int16Data.buffer);
-    };
+              const channelData = input[0];
 
-    // Connect nodes
-    source.connect(processor);
-    processor.connect(audioContext.destination);
+              for (let i = 0; i < channelData.length; i++) {
+                this.buffer[this.bufferIndex++] = channelData[i];
+
+                if (this.bufferIndex >= this.bufferSize) {
+                  this.port.postMessage({ audioData: this.buffer.slice() });
+                  this.bufferIndex = 0;
+                }
+              }
+
+              return true;
+            }
+          }
+
+          registerProcessor('pcm-processor', PCMProcessor);
+        `;
+
+        const blob = new Blob([workletCode], { type: 'application/javascript' });
+        const workletUrl = URL.createObjectURL(blob);
+
+        await audioContext.audioWorklet.addModule(workletUrl);
+        URL.revokeObjectURL(workletUrl);
+
+        const workletNode = new AudioWorkletNode(audioContext, 'pcm-processor');
+        workletNodeRef.current = workletNode;
+
+        workletNode.port.onmessage = (event) => {
+          const audioData = event.data.audioData as Float32Array;
+
+          // Resample to 16kHz
+          const resampledData = resample(audioData, actualSampleRate, TARGET_SAMPLE_RATE);
+          const int16Data = float32ToInt16(resampledData);
+
+          onAudioData(int16Data.buffer);
+        };
+
+        source.connect(workletNode);
+        workletNode.connect(audioContext.destination);
+
+        useWorklet = true;
+        console.log('Using AudioWorklet approach');
+      } catch (err) {
+        console.log('AudioWorklet failed, falling back to ScriptProcessor:', err);
+      }
+    }
+
+    if (!useWorklet) {
+      // Fallback to ScriptProcessor
+      console.log('Using ScriptProcessorNode approach');
+
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (event) => {
+        const inputData = event.inputBuffer.getChannelData(0);
+
+        // Resample to 16kHz if needed (for Deepgram)
+        const resampledData = resample(inputData, actualSampleRate, TARGET_SAMPLE_RATE);
+        const int16Data = float32ToInt16(resampledData);
+
+        onAudioData(int16Data.buffer);
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+    }
 
     setIsRecording(true);
   }, [onAudioData]);
@@ -163,46 +175,48 @@ export function useAudioCapture({ onAudioData }: UseAudioCaptureOptions) {
     try {
       setError(null);
 
-      // Request microphone access - don't force sample rate for iOS Bluetooth compatibility
+      // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
           // Don't specify sampleRate - let the device use its native rate
-          // This is critical for iOS Bluetooth microphones
         },
       });
 
       streamRef.current = stream;
 
-      // Use MediaRecorder for iOS Safari (more reliable with Bluetooth microphones)
-      // ScriptProcessorNode doesn't work properly with Bluetooth on iOS Safari
-      if (isIOSSafari()) {
-        await startWithMediaRecorder(stream);
-      } else {
-        await startWithScriptProcessor(stream);
-      }
+      // Log track settings for debugging
+      const track = stream.getAudioTracks()[0];
+      const settings = track.getSettings();
+      console.log('Audio track settings:', settings);
+
+      await startWithWebAudio(stream);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to access microphone';
       setError(message);
       console.error('Audio capture error:', err);
     }
-  }, [startWithMediaRecorder, startWithScriptProcessor]);
+  }, [startWithWebAudio]);
 
   const stopRecording = useCallback(() => {
-    // Stop MediaRecorder if used
-    if (mediaRecorderRef.current) {
-      if (mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      mediaRecorderRef.current = null;
+    // Disconnect worklet node
+    if (workletNodeRef.current) {
+      workletNodeRef.current.disconnect();
+      workletNodeRef.current = null;
     }
 
     // Disconnect processor
     if (processorRef.current) {
       processorRef.current.disconnect();
       processorRef.current = null;
+    }
+
+    // Disconnect source
+    if (sourceRef.current) {
+      sourceRef.current.disconnect();
+      sourceRef.current = null;
     }
 
     // Close audio context
