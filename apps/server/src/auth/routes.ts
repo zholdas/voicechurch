@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { passport } from './passport.js';
 import { config } from '../config.js';
+import { createApiToken, deleteApiToken } from '../db/index.js';
 
 const router = Router();
 
@@ -28,14 +29,18 @@ router.get('/google/callback',
     const isMobile = req.query.state === 'mobile';
 
     if (isMobile && req.user) {
-      // Encode user data in URL for iOS app (since cookies don't share between WebAuth and URLSession)
+      // Generate API token for mobile app
+      const token = createApiToken(req.user.id);
+
+      // Encode user data and token in URL for iOS app
       const userData = encodeURIComponent(JSON.stringify({
         id: req.user.id,
         email: req.user.email,
         name: req.user.name,
         picture: req.user.picture,
+        token: token,
       }));
-      // Redirect to iOS app with user data
+      // Redirect to iOS app with user data and token
       res.redirect(`${IOS_CALLBACK_SCHEME}://auth/success?user=${userData}`);
     } else {
       // Successful web authentication
@@ -60,6 +65,15 @@ router.get('/me', (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
+  // Check for API token logout
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    deleteApiToken(token);
+    return res.json({ success: true });
+  }
+
+  // Session-based logout
   req.logout((err) => {
     if (err) {
       return res.status(500).json({ error: 'Failed to logout' });

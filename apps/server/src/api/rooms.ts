@@ -16,16 +16,30 @@ import { isValidLanguageCode } from '../languages.js';
 import { qrMapperService } from '../services/qr.js';
 import { generateQRCode } from '../services/qr-local.js';
 import { config } from '../config.js';
+import { getUserByApiToken } from '../db/index.js';
 
 const router = Router();
 
-// Middleware to check authentication
+// Middleware to check authentication (session or API token)
 function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  // Check session auth first
   if (req.isAuthenticated() && req.user) {
-    next();
-  } else {
-    res.status(401).json({ error: 'Authentication required' });
+    return next();
   }
+
+  // Check for Bearer token (mobile app)
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const user = getUserByApiToken(token);
+    if (user) {
+      // Attach user to request for downstream handlers
+      (req as any).user = user;
+      return next();
+    }
+  }
+
+  res.status(401).json({ error: 'Authentication required' });
 }
 
 // GET /api/rooms/public - Get all public rooms (no auth required)

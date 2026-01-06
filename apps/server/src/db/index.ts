@@ -30,6 +30,15 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS api_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id);
+
   CREATE TABLE IF NOT EXISTS rooms (
     id TEXT PRIMARY KEY,
     slug TEXT UNIQUE NOT NULL,
@@ -843,5 +852,42 @@ export function hasUsedTrial(userId: string): boolean {
 
 export function markTrialUsed(userId: string): void {
   const stmt = db.prepare('UPDATE users SET has_used_trial = 1 WHERE id = ?');
+  stmt.run(userId);
+}
+
+// ============================================
+// API Token functions (for mobile apps)
+// ============================================
+
+export function createApiToken(userId: string): string {
+  const token = crypto.randomUUID() + crypto.randomUUID(); // 72 char token
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+  const stmt = db.prepare(`
+    INSERT INTO api_tokens (token, user_id, expires_at)
+    VALUES (?, ?, ?)
+  `);
+  stmt.run(token, userId, expiresAt);
+  return token;
+}
+
+export function getUserByApiToken(token: string): DbUser | null {
+  const stmt = db.prepare(`
+    SELECT u.* FROM users u
+    JOIN api_tokens t ON u.id = t.user_id
+    WHERE t.token = ? AND (t.expires_at IS NULL OR t.expires_at > datetime('now'))
+  `);
+  const row = stmt.get(token) as any;
+  if (!row) return null;
+  return mapUserRow(row);
+}
+
+export function deleteApiToken(token: string): boolean {
+  const stmt = db.prepare('DELETE FROM api_tokens WHERE token = ?');
+  const result = stmt.run(token);
+  return result.changes > 0;
+}
+
+export function deleteUserApiTokens(userId: string): void {
+  const stmt = db.prepare('DELETE FROM api_tokens WHERE user_id = ?');
   stmt.run(userId);
 }
