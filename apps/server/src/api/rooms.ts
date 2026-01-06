@@ -159,7 +159,19 @@ router.post('/', requireAuth, (req, res) => {
         });
     }
 
-    res.status(201).json(room);
+    // Return serializable room data (not the raw Room with Sets and connections)
+    res.status(201).json({
+      id: room.id,
+      slug: room.slug,
+      name: room.name,
+      sourceLanguage: room.sourceLanguage,
+      targetLanguage: room.targetLanguage,
+      isPublic: room.isPublic,
+      isActive: room.isActive,
+      listenerCount: room.listeners.size,
+      qrId: room.qrId,
+      qrImageUrl: room.qrImageUrl,
+    });
   } catch (error) {
     console.error('Failed to create room:', error);
     res.status(500).json({ error: 'Failed to create room' });
@@ -209,7 +221,19 @@ router.put('/:id', requireAuth, (req, res) => {
     return res.status(404).json({ error: 'Room not found or not authorized' });
   }
 
-  res.json(room);
+  // Return serializable room data
+  res.json({
+    id: room.id,
+    slug: room.slug,
+    name: room.name,
+    sourceLanguage: room.sourceLanguage,
+    targetLanguage: room.targetLanguage,
+    isPublic: room.isPublic,
+    isActive: room.isActive,
+    listenerCount: room.listeners.size,
+    qrId: room.qrId,
+    qrImageUrl: room.qrImageUrl,
+  });
 });
 
 // DELETE /api/rooms/:id - Delete a room (auth required, owner only)
