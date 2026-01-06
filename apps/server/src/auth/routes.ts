@@ -2,29 +2,21 @@ import { Router } from 'express';
 import { passport } from './passport.js';
 import { config } from '../config.js';
 
-// Extend session type for mobile auth
-declare module 'express-session' {
-  interface SessionData {
-    mobileAuth?: boolean;
-  }
-}
-
 const router = Router();
 
 // iOS app URL scheme
 const IOS_CALLBACK_SCHEME = 'com.googleusercontent.apps.53956819632-pmic1t4i2ck0jm7mmg1hd85886aaql85';
 
 // Start Google OAuth flow
-// Add ?mobile=true for iOS app
-router.get('/google', (req, _res, next) => {
-  // Store mobile flag in session for callback
-  if (req.query.mobile === 'true') {
-    req.session.mobileAuth = true;
-  }
-  next();
-}, passport.authenticate('google', {
-  scope: ['profile', 'email'],
-}));
+// Add ?mobile=true for iOS app - uses OAuth state parameter
+router.get('/google', (req, res, next) => {
+  const isMobile = req.query.mobile === 'true';
+
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state: isMobile ? 'mobile' : 'web',
+  })(req, res, next);
+});
 
 // Google OAuth callback
 router.get('/google/callback',
@@ -32,9 +24,10 @@ router.get('/google/callback',
     failureRedirect: `${config.frontendUrl}/login?error=auth_failed`,
   }),
   (req, res) => {
-    // Check if this was a mobile auth request
-    if (req.session.mobileAuth) {
-      delete req.session.mobileAuth;
+    // Check state parameter to determine if mobile auth
+    const isMobile = req.query.state === 'mobile';
+
+    if (isMobile) {
       // Redirect to iOS app with success
       res.redirect(`${IOS_CALLBACK_SCHEME}://auth/success`);
     } else {
