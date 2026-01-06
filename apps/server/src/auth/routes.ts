@@ -27,9 +27,16 @@ router.get('/google/callback',
     // Check state parameter to determine if mobile auth
     const isMobile = req.query.state === 'mobile';
 
-    if (isMobile) {
-      // Redirect to iOS app with success
-      res.redirect(`${IOS_CALLBACK_SCHEME}://auth/success`);
+    if (isMobile && req.user) {
+      // Encode user data in URL for iOS app (since cookies don't share between WebAuth and URLSession)
+      const userData = encodeURIComponent(JSON.stringify({
+        id: req.user.id,
+        email: req.user.email,
+        name: req.user.name,
+        picture: req.user.picture,
+      }));
+      // Redirect to iOS app with user data
+      res.redirect(`${IOS_CALLBACK_SCHEME}://auth/success?user=${userData}`);
     } else {
       // Successful web authentication
       res.redirect(`${config.frontendUrl}/dashboard`);
