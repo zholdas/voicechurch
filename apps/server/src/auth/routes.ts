@@ -2,10 +2,27 @@ import { Router } from 'express';
 import { passport } from './passport.js';
 import { config } from '../config.js';
 
+// Extend session type for mobile auth
+declare module 'express-session' {
+  interface SessionData {
+    mobileAuth?: boolean;
+  }
+}
+
 const router = Router();
 
+// iOS app URL scheme
+const IOS_CALLBACK_SCHEME = 'com.googleusercontent.apps.53956819632-pmic1t4i2ck0jm7mmg1hd85886aaql85';
+
 // Start Google OAuth flow
-router.get('/google', passport.authenticate('google', {
+// Add ?mobile=true for iOS app
+router.get('/google', (req, _res, next) => {
+  // Store mobile flag in session for callback
+  if (req.query.mobile === 'true') {
+    req.session.mobileAuth = true;
+  }
+  next();
+}, passport.authenticate('google', {
   scope: ['profile', 'email'],
 }));
 
@@ -15,8 +32,15 @@ router.get('/google/callback',
     failureRedirect: `${config.frontendUrl}/login?error=auth_failed`,
   }),
   (req, res) => {
-    // Successful authentication
-    res.redirect(`${config.frontendUrl}/dashboard`);
+    // Check if this was a mobile auth request
+    if (req.session.mobileAuth) {
+      delete req.session.mobileAuth;
+      // Redirect to iOS app with success
+      res.redirect(`${IOS_CALLBACK_SCHEME}://auth/success`);
+    } else {
+      // Successful web authentication
+      res.redirect(`${config.frontendUrl}/dashboard`);
+    }
   }
 );
 
