@@ -30,6 +30,7 @@ export type ClientMessage =
 
 // Server -> Client messages
 export type ServerMessage =
+  | { type: 'connected' }
   | {
       type: 'room_created';
       roomId: string;

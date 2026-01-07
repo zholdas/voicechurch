@@ -12,6 +12,8 @@ import { roomsRouter } from './api/rooms.js';
 import { webhooksRouter } from './api/webhooks.js';
 import { billingRouter, createWebhookRouter } from './api/billing.js';
 import type { ExtendedWebSocket } from './websocket/types.js';
+import { getUserByApiToken } from './db/index.js';
+import { URL } from 'url';
 
 // Log startup
 console.log('Starting WordBeacon server...');
@@ -98,8 +100,25 @@ const server = createServer(app);
 // Create WebSocket server
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
-  handleConnection(ws as ExtendedWebSocket);
+wss.on('connection', (ws, req) => {
+  const extWs = ws as ExtendedWebSocket;
+
+  // Parse token from query string
+  const url = new URL(req.url || '', `http://${req.headers.host}`);
+  const token = url.searchParams.get('token');
+
+  // If token provided, authenticate and store userId
+  if (token) {
+    const user = getUserByApiToken(token);
+    if (user) {
+      extWs.userId = user.id;
+      console.log(`WebSocket authenticated for user: ${user.id}`);
+    } else {
+      console.log('WebSocket connection with invalid token');
+    }
+  }
+
+  handleConnection(extWs);
 });
 
 // Setup heartbeat for detecting dead connections

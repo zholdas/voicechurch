@@ -36,6 +36,9 @@ export function handleConnection(ws: ExtendedWebSocket): void {
 
   ws.isAlive = true;
 
+  // Send connected message to client
+  send(ws, { type: 'connected' });
+
   ws.on('pong', () => {
     ws.isAlive = true;
   });
@@ -156,13 +159,18 @@ function handleJoinRoom(
   role: 'broadcaster' | 'listener',
   targetLanguage?: LanguageCode
 ): void {
+  console.log(`handleJoinRoom: roomIdOrSlug=${roomIdOrSlug}, role=${role}, userId=${ws.userId}`);
+
   // Look up by ID first, then by slug
   const room = getRoom(roomIdOrSlug) || getRoomBySlug(roomIdOrSlug);
 
   if (!room) {
+    console.log(`Room not found: ${roomIdOrSlug}`);
     sendError(ws, 'ROOM_NOT_FOUND', 'Room does not exist');
     return;
   }
+
+  console.log(`Found room: id=${room.id}, slug=${room.slug}, isActive=${room.isActive}`);
 
   if (role === 'broadcaster') {
     if (room.broadcaster) {
@@ -170,7 +178,8 @@ function handleJoinRoom(
       return;
     }
 
-    addBroadcaster(room.id, ws);
+    addBroadcaster(room.id, ws, ws.userId);
+    console.log(`Broadcaster added to room ${room.id}, isActive is now: ${room.isActive}`);
     // Don't create Deepgram connection yet - wait for audio
   } else {
     // For listener: use specified language or fallback to room's target language
