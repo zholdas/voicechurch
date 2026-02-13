@@ -115,8 +115,15 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, []);
 
   const sendBinary = useCallback((data: ArrayBuffer) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(data);
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      // Backpressure: skip if WebSocket buffer is too full (>100KB)
+      // This prevents latency accumulation when network is slow
+      if (ws.bufferedAmount > 100000) {
+        console.warn('[WS] Buffer full, dropping audio chunk to prevent latency');
+        return;
+      }
+      ws.send(data);
     }
   }, []);
 

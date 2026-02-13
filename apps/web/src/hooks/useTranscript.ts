@@ -1,6 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import type { TranscriptEntry } from '../lib/types';
 
+// Maximum transcript entries to keep in memory
+// Prevents memory growth and React re-render slowdown during long sessions
+const MAX_ENTRIES = 100;
+
 export function useTranscript() {
   const [entries, setEntries] = useState<TranscriptEntry[]>([]);
   const [currentInterim, setCurrentInterim] = useState<TranscriptEntry | null>(null);
@@ -18,7 +22,12 @@ export function useTranscript() {
             isFinal: true,
             timestamp,
           };
-          return [...prev, newEntry];
+          const updated = [...prev, newEntry];
+          // Keep only last MAX_ENTRIES to prevent memory growth
+          if (updated.length > MAX_ENTRIES) {
+            return updated.slice(-MAX_ENTRIES);
+          }
+          return updated;
         });
         setCurrentInterim(null);
       } else {

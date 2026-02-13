@@ -1,5 +1,9 @@
 import { useRef, useCallback, useState } from 'react';
 
+// Maximum audio items in queue to prevent latency accumulation
+// If queue is full, oldest items are dropped to keep translation near real-time
+const MAX_QUEUE_SIZE = 5;
+
 export function useAudioPlayback() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isEnabled, setIsEnabled] = useState(false);
@@ -117,6 +121,13 @@ export function useAudioPlayback() {
 
   const play = useCallback((base64Audio: string) => {
     if (!isEnabled) return;
+
+    // Limit queue size to prevent latency accumulation during long sessions
+    // Drop oldest items if queue is full
+    while (queueRef.current.length >= MAX_QUEUE_SIZE) {
+      queueRef.current.shift();
+      console.warn('[TTS] Audio queue overflow, dropping oldest to reduce latency');
+    }
 
     queueRef.current.push(base64Audio);
 
