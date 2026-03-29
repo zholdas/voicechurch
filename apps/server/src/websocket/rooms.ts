@@ -211,6 +211,15 @@ export function updatePersistentRoom(
   return room;
 }
 
+// Update source language for a room (used during live broadcast)
+export function updateRoomSourceLanguage(roomId: string, sourceLanguage: LanguageCode): Room | null {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+  room.sourceLanguage = sourceLanguage;
+  room.translationDirection = languagesToDirection(sourceLanguage, room.targetLanguage);
+  return room;
+}
+
 // Delete a persistent room
 export function deletePersistentRoom(roomId: string, ownerId: string): boolean {
   const room = rooms.get(roomId);

@@ -124,6 +124,9 @@ export default function Listen() {
         case 'listener_count':
           setListenerCount(message.count);
           break;
+        case 'source_language_changed':
+          // Language change handled by server; no action needed on listener side
+          break;
         case 'error':
           setErrorMessage(message.message);
           break;
@@ -141,11 +144,17 @@ export default function Listen() {
     connect();
   }, [connect]);
 
+  // Close modal immediately when language is selected
+  useEffect(() => {
+    if (selectedLanguage) {
+      setShowLanguageSelector(false);
+    }
+  }, [selectedLanguage]);
+
   // Join room when connected and language is selected
   useEffect(() => {
     if (isConnected && roomId && selectedLanguage) {
       send({ type: 'join_room', roomId, role: 'listener', targetLanguage: selectedLanguage });
-      setShowLanguageSelector(false);
     }
   }, [isConnected, roomId, selectedLanguage, send]);
 

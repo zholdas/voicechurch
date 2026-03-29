@@ -72,6 +72,9 @@ export default function Broadcast() {
         setBroadcastStopped(message.reason);
         // stopRecording will be called via useEffect when broadcastStopped changes
         break;
+      case 'source_language_changed':
+        setSourceLanguage(message.sourceLanguage);
+        break;
     }
   }, []);
 
@@ -142,6 +145,13 @@ export default function Broadcast() {
       }
     }
   }, [isConnected, roomReady, isExistingRoom, urlRoomId, send, paramName, paramSlug, paramSourceLang, paramTargetLang]);
+
+  const handleSourceLanguageChange = useCallback(
+    (newLang: LanguageCode) => {
+      send({ type: 'change_source_language', sourceLanguage: newLang });
+    },
+    [send]
+  );
 
   const handleStartBroadcast = () => {
     startRecording();
@@ -218,8 +228,20 @@ export default function Broadcast() {
           {roomName && (
             <h2 className="text-2xl font-bold text-gray-900">{roomName}</h2>
           )}
-          <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mt-2 bg-gradient-to-r from-blue-100 to-green-100 text-gray-700">
-            {getLanguageName(sourceLanguage)} → {getLanguageName(targetLanguage)}
+          <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium mt-2 bg-gradient-to-r from-blue-100 to-green-100 text-gray-700">
+            <select
+              data-language-select
+              value={sourceLanguage}
+              onChange={(e) => handleSourceLanguageChange(e.target.value as LanguageCode)}
+              className="bg-transparent font-medium border-none focus:outline-none cursor-pointer"
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+            <span>→ {getLanguageName(targetLanguage)}</span>
           </div>
         </div>
 
@@ -307,10 +329,24 @@ export default function Broadcast() {
 
           {isRecording && (
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">
-                Speak clearly into your microphone. Your speech will be
-                translated to {getLanguageName(targetLanguage)} in real-time.
-              </p>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+                <span>
+                  Speak in <strong>{getLanguageName(sourceLanguage)}</strong>.{' '}
+                  Speaking another language?{' '}
+                  <button
+                    onClick={() => {
+                      const select = document.querySelector<HTMLSelectElement>('[data-language-select]');
+                      select?.focus();
+                    }}
+                    className="underline font-medium hover:text-blue-900"
+                  >
+                    Change language
+                  </button>
+                </span>
+              </div>
               {/* Real-time minutes indicator during broadcast */}
               {minutesRemaining !== null && (
                 <p className={`mt-2 text-sm font-medium ${

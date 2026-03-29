@@ -13,6 +13,8 @@ import {
   addBroadcaster,
   addListener,
   removeClient,
+  updateRoomSourceLanguage,
+  broadcastToListeners,
 } from './rooms.js';
 import {
   createDeepgramConnection,
@@ -82,6 +84,10 @@ function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
 
     case 'end_broadcast':
       handleEndBroadcast(ws);
+      break;
+
+    case 'change_source_language':
+      handleChangeSourceLanguage(ws, message.sourceLanguage);
       break;
 
     case 'ping':
@@ -206,6 +212,38 @@ function handleJoinRoom(
   if (role === 'listener' && room.isActive) {
     send(ws, { type: 'broadcast_started' });
   }
+}
+
+function handleChangeSourceLanguage(ws: ExtendedWebSocket, newLanguage: LanguageCode): void {
+  if (ws.role !== 'broadcaster' || !ws.roomId) {
+    sendError(ws, 'NOT_BROADCASTER', 'Only broadcaster can change source language');
+    return;
+  }
+
+  if (!isValidLanguageCode(newLanguage)) {
+    sendError(ws, 'INVALID_LANGUAGE', 'Invalid language code');
+    return;
+  }
+
+  const room = getRoom(ws.roomId);
+  if (!room) return;
+
+  if (room.sourceLanguage === newLanguage) return;
+
+  const oldLanguage = room.sourceLanguage;
+
+  // Close existing Deepgram connection (next audio chunk will create a new one)
+  closeDeepgramConnection(ws.roomId);
+
+  // Update room's source language
+  updateRoomSourceLanguage(ws.roomId, newLanguage);
+
+  // Notify broadcaster and all listeners
+  const notification = { type: 'source_language_changed' as const, sourceLanguage: newLanguage };
+  send(ws, notification);
+  broadcastToListeners(ws.roomId, notification);
+
+  console.log(`Source language changed for room ${ws.roomId}: ${oldLanguage} → ${newLanguage}`);
 }
 
 function handleEndBroadcast(ws: ExtendedWebSocket): void {

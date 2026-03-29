@@ -99,7 +99,8 @@ export type ServerMessage =
   | { type: 'pong' }
   // Billing-related messages
   | { type: 'usage_warning'; minutesRemaining: number }
-  | { type: 'broadcast_stopped'; reason: 'MINUTES_EXCEEDED' | 'LISTENERS_EXCEEDED' };
+  | { type: 'broadcast_stopped'; reason: 'MINUTES_EXCEEDED' | 'LISTENERS_EXCEEDED' }
+  | { type: 'source_language_changed'; sourceLanguage: LanguageCode };
 
 // Client -> Server messages
 export type ClientMessage =
@@ -118,6 +119,7 @@ export type ClientMessage =
       targetLanguage?: LanguageCode; // Listener's preferred language
     }
   | { type: 'end_broadcast' }
+  | { type: 'change_source_language'; sourceLanguage: LanguageCode }
   | { type: 'ping' };
 
 export interface TranscriptEntry {
