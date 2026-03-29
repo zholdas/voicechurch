@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { passport } from './passport.js';
 import { config } from '../config.js';
-import { createApiToken, deleteApiToken } from '../db/index.js';
+import { createApiToken, deleteApiToken, findOrCreateUser } from '../db/index.js';
+import appleSignin from 'apple-signin-auth';
 
 const router = Router();
 
@@ -48,6 +49,51 @@ router.get('/google/callback',
     }
   }
 );
+
+// Apple Sign-In for mobile (native iOS flow)
+router.post('/apple/mobile', async (req, res) => {
+  try {
+    const { identityToken, authorizationCode, fullName, email } = req.body;
+
+    if (!identityToken) {
+      return res.status(400).json({ error: 'identityToken is required' });
+    }
+
+    // Verify the identity token with Apple
+    const payload = await appleSignin.verifyIdToken(identityToken, {
+      audience: config.apple.clientId,
+      ignoreExpiration: false,
+    });
+
+    const appleUserId = payload.sub;
+    const appleEmail = payload.email || email;
+
+    if (!appleEmail) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Find or create user
+    const user = findOrCreateUser({
+      appleId: appleUserId,
+      email: appleEmail,
+      name: fullName || appleEmail.split('@')[0],
+    });
+
+    // Generate API token
+    const token = createApiToken(user.id);
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      token,
+    });
+  } catch (error) {
+    console.error('Apple Sign-In error:', error);
+    res.status(401).json({ error: 'Invalid Apple identity token' });
+  }
+});
 
 // Get current user
 router.get('/me', (req, res) => {

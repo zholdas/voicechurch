@@ -86,6 +86,14 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: Add apple_id to users
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN apple_id TEXT UNIQUE`);
+  console.log('Added apple_id column to users table');
+} catch {
+  // Column already exists, ignore
+}
+
 // Create billing tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS plans (
@@ -201,6 +209,7 @@ try {
 export interface DbUser {
   id: string;
   googleId: string | null;
+  appleId: string | null;
   email: string;
   name: string;
   picture: string | null;
@@ -208,17 +217,18 @@ export interface DbUser {
 }
 
 export function createUser(data: {
-  googleId: string;
+  googleId?: string;
+  appleId?: string;
   email: string;
   name: string;
   picture?: string;
 }): DbUser {
   const id = crypto.randomUUID();
   const stmt = db.prepare(`
-    INSERT INTO users (id, google_id, email, name, picture)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO users (id, google_id, apple_id, email, name, picture)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
-  stmt.run(id, data.googleId, data.email, data.name, data.picture || null);
+  stmt.run(id, data.googleId || null, data.appleId || null, data.email, data.name, data.picture || null);
   return getUserById(id)!;
 }
 
@@ -244,27 +254,63 @@ export function getUserByEmail(email: string): DbUser | null {
 }
 
 export function findOrCreateUser(data: {
-  googleId: string;
+  googleId?: string;
+  appleId?: string;
   email: string;
   name: string;
   picture?: string;
 }): DbUser {
-  const existing = getUserByGoogleId(data.googleId);
-  if (existing) {
-    // Update name and picture if changed
-    const stmt = db.prepare(`
-      UPDATE users SET name = ?, picture = ? WHERE google_id = ?
-    `);
-    stmt.run(data.name, data.picture || null, data.googleId);
-    return getUserByGoogleId(data.googleId)!;
+  // Try to find by provider ID first
+  if (data.googleId) {
+    const existing = getUserByGoogleId(data.googleId);
+    if (existing) {
+      const stmt = db.prepare(`UPDATE users SET name = ?, picture = ? WHERE google_id = ?`);
+      stmt.run(data.name, data.picture || null, data.googleId);
+      return getUserByGoogleId(data.googleId)!;
+    }
   }
+
+  if (data.appleId) {
+    const existing = getUserByAppleId(data.appleId);
+    if (existing) {
+      // Update name only if provided (Apple only sends it on first auth)
+      if (data.name) {
+        const stmt = db.prepare(`UPDATE users SET name = ? WHERE apple_id = ?`);
+        stmt.run(data.name, data.appleId);
+      }
+      return getUserByAppleId(data.appleId)!;
+    }
+  }
+
+  // Check if user exists by email (link accounts)
+  const existingByEmail = getUserByEmail(data.email);
+  if (existingByEmail) {
+    if (data.appleId) {
+      const stmt = db.prepare(`UPDATE users SET apple_id = ? WHERE id = ?`);
+      stmt.run(data.appleId, existingByEmail.id);
+    }
+    if (data.googleId) {
+      const stmt = db.prepare(`UPDATE users SET google_id = ? WHERE id = ?`);
+      stmt.run(data.googleId, existingByEmail.id);
+    }
+    return getUserById(existingByEmail.id)!;
+  }
+
   return createUser(data);
+}
+
+export function getUserByAppleId(appleId: string): DbUser | null {
+  const stmt = db.prepare('SELECT * FROM users WHERE apple_id = ?');
+  const row = stmt.get(appleId) as any;
+  if (!row) return null;
+  return mapUserRow(row);
 }
 
 function mapUserRow(row: any): DbUser {
   return {
     id: row.id,
     googleId: row.google_id,
+    appleId: row.apple_id || null,
     email: row.email,
     name: row.name,
     picture: row.picture,

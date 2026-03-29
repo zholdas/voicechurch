@@ -19,6 +19,10 @@ export const config = {
     callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3001/auth/google/callback',
   },
 
+  apple: {
+    clientId: process.env.APPLE_CLIENT_ID || 'com.voicechurch.app',
+  },
+
   deepgram: {
     apiKey: process.env.DEEPGRAM_API_KEY || '',
   },
