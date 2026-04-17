@@ -69,11 +69,6 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
         </div>
       </div>
 
-      {/* Debug badge — remove after testing */}
-      <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs font-mono text-white bg-black/70 z-50">
-        autoScroll: {autoScroll ? 'ON' : 'OFF'}
-      </div>
-
       {/* Scroll to bottom button — shown when user has scrolled up */}
       {!autoScroll && (
         <button
