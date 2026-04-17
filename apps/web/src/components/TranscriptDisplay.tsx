@@ -1,4 +1,4 @@
-import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
+import { useRef, useLayoutEffect, useCallback, useState } from 'react';
 import type { TranscriptEntry } from '../lib/types';
 
 interface TranscriptDisplayProps {
@@ -10,42 +10,11 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const autoScrollRef = useRef(true);
-  const userTouchingRef = useRef(false);
 
-  // Detect user touch/wheel to disable auto-scroll
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const onTouchStart = () => {
-      userTouchingRef.current = true;
-      autoScrollRef.current = false;
-      setAutoScroll(false);
-    };
-
-    const onTouchEnd = () => {
-      // Delay clearing touch flag to cover iOS inertial scrolling
-      setTimeout(() => { userTouchingRef.current = false; }, 1000);
-    };
-
-    const onWheel = () => {
-      autoScrollRef.current = false;
-      setAutoScroll(false);
-    };
-
-    container.addEventListener('touchstart', onTouchStart, { passive: true });
-    container.addEventListener('touchend', onTouchEnd, { passive: true });
-    container.addEventListener('wheel', onWheel, { passive: true });
-
-    return () => {
-      container.removeEventListener('touchstart', onTouchStart);
-      container.removeEventListener('touchend', onTouchEnd);
-      container.removeEventListener('wheel', onWheel);
-    };
+  const disableAutoScroll = useCallback(() => {
+    autoScrollRef.current = false;
+    setAutoScroll(false);
   }, []);
-
-  // No auto-re-enable from scroll position — only the button re-enables auto-scroll
-  const handleScroll = useCallback(() => {}, []);
 
   // Scroll to bottom button handler
   const scrollToBottom = useCallback(() => {
@@ -79,7 +48,8 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
     <div className="relative flex-1 min-h-0">
       <div
         ref={containerRef}
-        onScroll={handleScroll}
+        onTouchStart={disableAutoScroll}
+        onWheel={disableAutoScroll}
         className="h-full overflow-y-auto overscroll-contain transcript-scroll transcript-container p-4 sm:p-6 lg:p-4 xl:p-6 bg-white rounded-lg shadow-inner"
       >
         <div
