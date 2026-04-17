@@ -219,22 +219,25 @@ export class DeepLVoicePipeline implements TranslationPipeline {
   }
 
   private extractTranscriptText(update: any): string {
-    // DeepL Voice returns concluded_segments and tentative_segment
-    const segments = update.concluded_segments || [];
-    const tentative = update.tentative_segment?.text || '';
-    const concludedText = segments.map((s: any) => s.text || '').join(' ');
-    return (concludedText + ' ' + tentative).trim();
+    // DeepL Voice returns "concluded" (array) and "tentative" (array)
+    const concluded = update.concluded || [];
+    const tentative = update.tentative || [];
+    const concludedText = concluded.map((s: any) => s.text || '').join(' ');
+    const tentativeText = tentative.map((s: any) => s.text || '').join(' ');
+    return (concludedText + ' ' + tentativeText).trim();
   }
 
   private extractTargetLanguage(update: any, targetLanguages: LanguageCode[]): LanguageCode | null {
-    const lang = update.target_language?.toLowerCase();
+    // DeepL Voice uses "language" field, e.g. "en-US", "es", "pt"
+    const lang = (update.language || '').toLowerCase();
     if (!lang) return targetLanguages[0] || null;
 
     for (const target of targetLanguages) {
       const cfg = getLanguageConfig(target);
+      // Match "en-us" to "en-US", or "pt" to "pt-PT"
       if (cfg.deeplTargetCode.toLowerCase() === lang ||
-          cfg.deeplTargetCode.toLowerCase().startsWith(lang) ||
-          lang.startsWith(cfg.code)) {
+          lang.startsWith(cfg.code) ||
+          cfg.code === lang.split('-')[0]) {
         return target;
       }
     }
