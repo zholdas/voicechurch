@@ -29,8 +29,9 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
       const container = containerRef.current;
       if (!container) return;
 
+      // Recalculate target each frame (scrollHeight changes as new entries arrive)
+      const target = container.scrollHeight - container.clientHeight;
       const currentScroll = container.scrollTop;
-      const target = targetScrollRef.current;
       const diff = target - currentScroll;
 
       // Stop if close enough
