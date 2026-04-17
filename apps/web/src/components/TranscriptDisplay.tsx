@@ -69,8 +69,10 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
     const container = containerRef.current;
     if (!container) return;
 
-    // Simple instant scroll — no animation to fight with user input
+    // Check autoScrollRef again inside RAF — user may have touched the screen
+    // between when this effect ran and when RAF executes
     requestAnimationFrame(() => {
+      if (!autoScrollRef.current) return;
       container.scrollTop = container.scrollHeight;
     });
   }, [entries]);
