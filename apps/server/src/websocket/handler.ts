@@ -21,12 +21,8 @@ import {
   hasPipelineConnection,
 } from './rooms.js';
 import { getPipeline } from '../services/pipeline-factory.js';
-import { setTargetLanguagesProvider } from '../services/legacy-pipeline.js';
 import type { TranscriptResult } from '../services/pipeline.js';
 import { isValidLanguageCode } from '../languages.js';
-
-// Provide the target languages lookup to the legacy pipeline
-setTargetLanguagesProvider(getUniqueListenerLanguages);
 
 function send(ws: WebSocket, message: ServerMessage): void {
   if (ws.readyState === ws.OPEN) {
@@ -301,7 +297,7 @@ function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
   // Create pipeline connection lazily on first audio chunk
   if (!room.pipelineConnection) {
     console.log(`Starting pipeline for room: ${ws.roomId}`);
-    pipeline.createConnection(ws.roomId, room.sourceLanguage, handleTranscriptResult);
+    pipeline.createConnection(ws.roomId, room.sourceLanguage, getUniqueListenerLanguages, handleTranscriptResult);
     setPipelineConnection(ws.roomId, true);
   }
 

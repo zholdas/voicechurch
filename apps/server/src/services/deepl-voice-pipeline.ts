@@ -2,9 +2,7 @@ import WebSocket from 'ws';
 import { config } from '../config.js';
 import { getLanguageConfig } from '../languages.js';
 import type { LanguageCode } from '../websocket/types.js';
-import type { TranslationPipeline, TranscriptCallback } from './pipeline.js';
-import { setTargetLanguagesProvider } from './legacy-pipeline.js';
-
+import type { TranslationPipeline, TranscriptCallback, TargetLanguagesProvider } from './pipeline.js';
 const DEEPL_VOICE_API_BASE = 'https://api.deepl.com';
 
 interface SessionState {
@@ -20,21 +18,22 @@ interface SessionState {
 // Per-room session state
 const sessions = new Map<string, SessionState>();
 
-// Target languages callback — set by handler
-let getTargetLanguages: ((roomId: string) => LanguageCode[]) | null = null;
-
-export function setDeepLVoiceTargetLanguagesProvider(fn: (roomId: string) => LanguageCode[]): void {
-  getTargetLanguages = fn;
-}
-
 export class DeepLVoicePipeline implements TranslationPipeline {
-  async createConnection(roomId: string, sourceLanguage: LanguageCode, onResult: TranscriptCallback): Promise<void> {
+  createConnection(roomId: string, sourceLanguage: LanguageCode, targetLanguages: TargetLanguagesProvider, onResult: TranscriptCallback): void {
+    // Snapshot target languages at session creation (DeepL Voice fixes them per session)
+    const targets = targetLanguages(roomId);
+    this.createConnectionAsync(roomId, sourceLanguage, targets, onResult).catch(err => {
+      console.error(`Failed to create DeepL Voice session for room ${roomId}:`, err);
+      sessions.delete(roomId);
+    });
+  }
+
+  private async createConnectionAsync(roomId: string, sourceLanguage: LanguageCode, targetLanguages: LanguageCode[], onResult: TranscriptCallback): Promise<void> {
     if (!config.deeplVoice.apiKey) {
       console.warn('DeepL Voice API key not configured');
       return;
     }
 
-    const targetLanguages = getTargetLanguages?.(roomId) || [];
     if (targetLanguages.length === 0) {
       console.warn(`No target languages for room ${roomId}, skipping DeepL Voice connection`);
       return;
@@ -122,7 +121,7 @@ export class DeepLVoicePipeline implements TranslationPipeline {
       });
 
     } catch (error) {
-      console.error(`Failed to create DeepL Voice session for room ${roomId}:`, error);
+      console.error(`DeepL Voice session error for room ${roomId}:`, error);
       sessions.delete(roomId);
     }
   }

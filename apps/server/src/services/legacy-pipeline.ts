@@ -4,26 +4,20 @@ import { translate, cancelPendingTranslation } from './translation.js';
 import { synthesizeSpeech, isGoogleTtsConfigured } from './google-tts.js';
 import { getLanguageConfig } from '../languages.js';
 import type { LanguageCode } from '../websocket/types.js';
-import type { TranslationPipeline, TranscriptCallback } from './pipeline.js';
+import type { TranslationPipeline, TranscriptCallback, TargetLanguagesProvider } from './pipeline.js';
 
 interface ConnectionState {
   connection: unknown;
   sourceLanguage: LanguageCode;
+  getTargetLanguages: TargetLanguagesProvider;
   onResult: TranscriptCallback;
 }
 
 // Per-room connection state
 const connections = new Map<string, ConnectionState>();
 
-// Target languages callback — set by handler before creating connection
-let getTargetLanguages: ((roomId: string) => LanguageCode[]) | null = null;
-
-export function setTargetLanguagesProvider(fn: (roomId: string) => LanguageCode[]): void {
-  getTargetLanguages = fn;
-}
-
 export class LegacyPipeline implements TranslationPipeline {
-  createConnection(roomId: string, sourceLanguage: LanguageCode, onResult: TranscriptCallback): void {
+  createConnection(roomId: string, sourceLanguage: LanguageCode, targetLanguages: TargetLanguagesProvider, onResult: TranscriptCallback): void {
     if (!config.deepgram.apiKey) {
       console.warn('Deepgram API key not configured');
       return;
@@ -44,7 +38,7 @@ export class LegacyPipeline implements TranslationPipeline {
       sample_rate: 16000,
     });
 
-    connections.set(roomId, { connection, sourceLanguage, onResult });
+    connections.set(roomId, { connection, sourceLanguage, getTargetLanguages: targetLanguages, onResult });
 
     connection.on(LiveTranscriptionEvents.Open, () => {
       console.log(`Deepgram connection opened for room: ${roomId} (language: ${language})`);
@@ -59,14 +53,14 @@ export class LegacyPipeline implements TranslationPipeline {
       const state = connections.get(roomId);
       if (!state) return;
 
-      const targetLanguages = getTargetLanguages?.(roomId) || [];
-      if (targetLanguages.length === 0) return;
+      const currentTargets = state.getTargetLanguages(roomId);
+      if (currentTargets.length === 0) return;
 
       if (isFinal) {
         cancelPendingTranslation(roomId);
 
         const results = await Promise.all(
-          targetLanguages.map(async (targetLang) => {
+          currentTargets.map(async (targetLang) => {
             const translated = await translate(transcript, state.sourceLanguage, targetLang);
 
             let audioBase64: string | undefined;

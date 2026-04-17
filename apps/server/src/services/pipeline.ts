@@ -12,8 +12,10 @@ export type TranscriptCallback = (
   result: TranscriptResult,
 ) => void;
 
+export type TargetLanguagesProvider = (roomId: string) => LanguageCode[];
+
 export interface TranslationPipeline {
-  createConnection(roomId: string, sourceLanguage: LanguageCode, onResult: TranscriptCallback): void;
+  createConnection(roomId: string, sourceLanguage: LanguageCode, targetLanguages: TargetLanguagesProvider, onResult: TranscriptCallback): void;
   sendAudio(roomId: string, audioData: Buffer): void;
   closeConnection(roomId: string): void;
 }
