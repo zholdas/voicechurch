@@ -218,6 +218,9 @@ export class DeepLVoicePipeline implements TranslationPipeline {
       const concluded = update.concluded || [];
       const tentative = update.tentative || [];
       const targetLang = this.extractTargetLanguage(update, state.targetLanguages);
+
+      console.log(`[deepl-voice] target_transcript processing: lang=${update.language}, matched=${targetLang}, concluded=${concluded.length}, tentative=${tentative.length}, stateTargets=${JSON.stringify(state.targetLanguages)}`);
+
       if (!targetLang) return;
 
       const langKey = targetLang;
@@ -225,8 +228,11 @@ export class DeepLVoicePipeline implements TranslationPipeline {
 
       // Send only NEW concluded segments as final
       const newConcluded = concluded.slice(prevCount);
+      console.log(`[deepl-voice] target concluded: prev=${prevCount}, total=${concluded.length}, new=${newConcluded.length}`);
+
       if (newConcluded.length > 0) {
         const text = newConcluded.map((s: any) => s.text || '').join(' ').trim();
+        console.log(`[deepl-voice] Sending final translation: lang=${targetLang}, text="${text.substring(0, 50)}"`);
         if (text) {
           const translations = new Map<LanguageCode, { translated: string; audio?: string }>();
           translations.set(targetLang, { translated: text });
