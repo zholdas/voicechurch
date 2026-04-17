@@ -13,9 +13,6 @@ interface SessionState {
   sessionId: string | null;
   isConnecting: boolean;
   pendingAudio: Buffer[];
-  // Track how many concluded segments we've already sent, to avoid duplicates
-  sourceConcludedCount: number;
-  targetConcludedCount: Map<string, number>;
 }
 
 // Per-room session state
@@ -53,8 +50,6 @@ export class DeepLVoicePipeline implements TranslationPipeline {
       sessionId: null,
       isConnecting: true,
       pendingAudio: [],
-      sourceConcludedCount: 0,
-      targetConcludedCount: new Map(),
     };
     sessions.set(roomId, state);
 
@@ -191,73 +186,44 @@ export class DeepLVoicePipeline implements TranslationPipeline {
     // DeepL Voice uses object keys as message types, not a "type" field
     if (message.source_transcript_update) {
       const update = message.source_transcript_update;
-      const concluded = update.concluded || [];
       const tentative = update.tentative || [];
 
-      // Source transcripts are always interim — the final text comes via target_transcript_update
-      // Show new concluded + tentative as interim for live preview
-      const newConcluded = concluded.slice(state.sourceConcludedCount);
-      const newText = newConcluded.map((s: any) => s.text || '').join(' ').trim();
+      // Source transcripts are always interim — only show tentative (current speech)
       const tentativeText = tentative.map((s: any) => s.text || '').join(' ').trim();
-      const displayText = (newText + ' ' + tentativeText).trim();
-
-      if (displayText) {
+      if (tentativeText) {
         state.onResult(roomId, {
-          source: displayText,
+          source: tentativeText,
           translations: new Map(),
           isFinal: false,
           timestamp: Date.now(),
         });
       }
 
-      // Track concluded count so we don't re-show old segments
-      state.sourceConcludedCount = concluded.length;
-
     } else if (message.target_transcript_update) {
       const update = message.target_transcript_update;
       const concluded = update.concluded || [];
       const tentative = update.tentative || [];
       const targetLang = this.extractTargetLanguage(update, state.targetLanguages);
-
-      console.log(`[deepl-voice] target_transcript processing: lang=${update.language}, matched=${targetLang}, concluded=${concluded.length}, tentative=${tentative.length}, stateTargets=${JSON.stringify(state.targetLanguages)}`);
-
       if (!targetLang) return;
 
-      const langKey = targetLang;
-      const prevCount = state.targetConcludedCount.get(langKey) || 0;
-
-      // Send only NEW concluded segments as final
-      const newConcluded = concluded.slice(prevCount);
-      console.log(`[deepl-voice] target concluded: prev=${prevCount}, total=${concluded.length}, new=${newConcluded.length}`);
-
-      if (newConcluded.length > 0) {
-        const text = newConcluded.map((s: any) => s.text || '').join(' ').trim();
-        console.log(`[deepl-voice] Sending final translation: lang=${targetLang}, text="${text.substring(0, 50)}"`);
-        if (text) {
-          const translations = new Map<LanguageCode, { translated: string; audio?: string }>();
-          translations.set(targetLang, { translated: text });
-          state.onResult(roomId, {
-            source: text,
-            translations,
-            isFinal: true,
-            timestamp: Date.now(),
-          });
-        }
-        state.targetConcludedCount.set(langKey, concluded.length);
-      }
-
-      // Send tentative as interim
+      // Build full text from all concluded + tentative
+      const concludedText = concluded.map((s: any) => s.text || '').join(' ').trim();
       const tentativeText = tentative.map((s: any) => s.text || '').join(' ').trim();
-      if (tentativeText) {
-        const translations = new Map<LanguageCode, { translated: string; audio?: string }>();
-        translations.set(targetLang, { translated: tentativeText });
-        state.onResult(roomId, {
-          source: tentativeText,
-          translations,
-          isFinal: false,
-          timestamp: Date.now(),
-        });
-      }
+      const fullText = (concludedText + ' ' + tentativeText).trim();
+      if (!fullText) return;
+
+      // Determine if this is final (has concluded segments and no tentative)
+      const isFinal = concluded.length > 0 && tentative.length === 0;
+
+      const translations = new Map<LanguageCode, { translated: string; audio?: string }>();
+      translations.set(targetLang, { translated: fullText });
+
+      state.onResult(roomId, {
+        source: fullText,
+        translations,
+        isFinal,
+        timestamp: Date.now(),
+      });
 
     } else if (message.target_media_chunk) {
       // Audio for translated speech (closed beta)
