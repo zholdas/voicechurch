@@ -68,6 +68,7 @@ export class DeepLVoicePipeline implements TranslationPipeline {
             const cfg = getLanguageConfig(lang);
             return cfg.deeplTargetCode.toUpperCase();
           }),
+          source_media_content_type: 'audio/l16;rate=16000;channels=1',
         }),
       });
 
