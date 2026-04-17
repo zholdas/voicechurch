@@ -124,7 +124,7 @@ export class DeepLVoicePipeline implements TranslationPipeline {
         console.error(`DeepL Voice WebSocket error for room ${roomId}:`, error);
       });
 
-      ws.on('close', (code, reason) => {
+      ws.on('close', (code) => {
         console.log(`DeepL Voice connection closed for room: ${roomId} (code: ${code})`);
         sessions.delete(roomId);
       });
@@ -191,31 +191,24 @@ export class DeepLVoicePipeline implements TranslationPipeline {
       const concluded = update.concluded || [];
       const tentative = update.tentative || [];
 
-      // Send only NEW concluded segments as final
+      // Source transcripts are always interim — the final text comes via target_transcript_update
+      // Show new concluded + tentative as interim for live preview
       const newConcluded = concluded.slice(state.sourceConcludedCount);
-      if (newConcluded.length > 0) {
-        const text = newConcluded.map((s: any) => s.text || '').join(' ').trim();
-        if (text) {
-          state.onResult(roomId, {
-            source: text,
-            translations: new Map(),
-            isFinal: true,
-            timestamp: Date.now(),
-          });
-        }
-        state.sourceConcludedCount = concluded.length;
-      }
-
-      // Send tentative as interim (will be replaced)
+      const newText = newConcluded.map((s: any) => s.text || '').join(' ').trim();
       const tentativeText = tentative.map((s: any) => s.text || '').join(' ').trim();
-      if (tentativeText) {
+      const displayText = (newText + ' ' + tentativeText).trim();
+
+      if (displayText) {
         state.onResult(roomId, {
-          source: tentativeText,
+          source: displayText,
           translations: new Map(),
           isFinal: false,
           timestamp: Date.now(),
         });
       }
+
+      // Track concluded count so we don't re-show old segments
+      state.sourceConcludedCount = concluded.length;
 
     } else if (message.target_transcript_update) {
       const update = message.target_transcript_update;
