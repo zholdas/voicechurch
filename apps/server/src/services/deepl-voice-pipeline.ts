@@ -105,7 +105,10 @@ export class DeepLVoicePipeline implements TranslationPipeline {
 
       ws.on('message', (data) => {
         try {
-          const message = JSON.parse(data.toString());
+          const raw = data.toString();
+          const message = JSON.parse(raw);
+          const keys = Object.keys(message);
+          console.log(`[deepl-voice] Received for room ${roomId}: ${keys.join(', ')} | ${raw.substring(0, 200)}`);
           this.handleDeepLMessage(roomId, message);
         } catch (error) {
           console.error(`Failed to parse DeepL Voice message for room ${roomId}:`, error);
