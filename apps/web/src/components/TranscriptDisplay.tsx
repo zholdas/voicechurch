@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import type { TranscriptEntry } from '../lib/types';
 
 interface TranscriptDisplayProps {
@@ -8,7 +8,7 @@ interface TranscriptDisplayProps {
 
 export default function TranscriptDisplay({ entries, fontSize }: TranscriptDisplayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScrollRef = useRef(true);
+  const [autoScroll, setAutoScroll] = useState(true);
   const animationRef = useRef<number | null>(null);
   const targetScrollRef = useRef(0);
 
@@ -41,7 +41,6 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
       }
 
       // Easing: move 15% of remaining distance each frame
-      // This creates smooth deceleration like movie credits
       container.scrollTop = currentScroll + diff * 0.15;
       animationRef.current = requestAnimationFrame(animate);
     };
@@ -54,17 +53,26 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
     const container = containerRef.current;
     if (!container) return;
 
-    // If animation is running, don't check
-    if (animationRef.current) return;
+    // If user scrolls during animation, stop the animation and let them scroll freely
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
 
     // Check if user is near bottom (within 150px)
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-    shouldAutoScrollRef.current = isNearBottom;
+    setAutoScroll(isNearBottom);
   }, []);
+
+  // Scroll to bottom and re-enable auto-scroll
+  const scrollToBottom = useCallback(() => {
+    setAutoScroll(true);
+    smoothScrollToBottom();
+  }, [smoothScrollToBottom]);
 
   // Auto-scroll to bottom when new entries arrive
   useEffect(() => {
-    if (!shouldAutoScrollRef.current) return;
+    if (!autoScroll) return;
 
     // Use double RAF for iOS Safari compatibility, then smooth scroll
     requestAnimationFrame(() => {
@@ -72,7 +80,7 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
         smoothScrollToBottom();
       });
     });
-  }, [entries, smoothScrollToBottom]);
+  }, [entries, autoScroll, smoothScrollToBottom]);
 
   // Cleanup animation on unmount
   useEffect(() => {
@@ -92,26 +100,41 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   }
 
   return (
-    <div
-      ref={containerRef}
-      onScroll={handleScroll}
-      className="flex-1 overflow-y-auto overscroll-contain min-h-0 transcript-scroll transcript-container p-4 sm:p-6 lg:p-4 xl:p-6 bg-white rounded-lg shadow-inner"
-    >
+    <div className="relative flex-1 min-h-0">
       <div
-        className="lg:max-w-none mx-auto"
-        style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto overscroll-contain transcript-scroll transcript-container p-4 sm:p-6 lg:p-4 xl:p-6 bg-white rounded-lg shadow-inner"
       >
-        {entries.map((entry) => (
-          <span
-            key={entry.id}
-            className={`inline ${
-              entry.isFinal ? 'text-gray-900' : 'text-gray-400 italic'
-            }`}
-          >
-            {entry.translated}{' '}
-          </span>
-        ))}
+        <div
+          className="lg:max-w-none mx-auto"
+          style={{ fontSize: `${fontSize}px`, lineHeight: 1.8 }}
+        >
+          {entries.map((entry) => (
+            <span
+              key={entry.id}
+              className={`inline ${
+                entry.isFinal ? 'text-gray-900' : 'text-gray-400 italic'
+              }`}
+            >
+              {entry.translated}{' '}
+            </span>
+          ))}
+        </div>
       </div>
+
+      {/* Scroll to bottom button — shown when user has scrolled up */}
+      {!autoScroll && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-4 right-4 w-10 h-10 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
+          aria-label="Scroll to bottom"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
