@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 import type { TranscriptEntry } from '../lib/types';
 
 interface TranscriptDisplayProps {
@@ -58,18 +58,13 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   }, []);
 
   // Auto-scroll to bottom when new entries arrive
-  useEffect(() => {
+  // useLayoutEffect runs synchronously after DOM update, before paint —
+  // no async gap for touchstart to race against
+  useLayoutEffect(() => {
     if (!autoScrollRef.current) return;
-
     const container = containerRef.current;
     if (!container) return;
-
-    // Check autoScrollRef again inside RAF — user may have touched the screen
-    // between when this effect ran and when RAF executes
-    requestAnimationFrame(() => {
-      if (!autoScrollRef.current) return;
-      container.scrollTop = container.scrollHeight;
-    });
+    container.scrollTop = container.scrollHeight;
   }, [entries]);
 
   if (entries.length === 0) {
