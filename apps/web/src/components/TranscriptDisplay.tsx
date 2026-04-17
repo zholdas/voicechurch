@@ -10,18 +10,39 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const animationRef = useRef<number | null>(null);
-  const targetScrollRef = useRef(0);
-  const isProgrammaticScroll = useRef(false);
+  const userInteracting = useRef(false);
 
-  // Smooth scroll animation like movie credits
+  // Detect user interaction (touch or mouse wheel) to distinguish from programmatic scroll
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onUserStart = () => { userInteracting.current = true; };
+    const onUserEnd = () => {
+      // Delay reset so the scroll events from inertia are still captured
+      setTimeout(() => { userInteracting.current = false; }, 200);
+    };
+
+    container.addEventListener('touchstart', onUserStart, { passive: true });
+    container.addEventListener('touchend', onUserEnd, { passive: true });
+    container.addEventListener('wheel', onUserStart, { passive: true });
+    container.addEventListener('mousedown', onUserStart);
+    container.addEventListener('mouseup', onUserEnd);
+
+    return () => {
+      container.removeEventListener('touchstart', onUserStart);
+      container.removeEventListener('touchend', onUserEnd);
+      container.removeEventListener('wheel', onUserStart);
+      container.removeEventListener('mousedown', onUserStart);
+      container.removeEventListener('mouseup', onUserEnd);
+    };
+  }, []);
+
+  // Smooth scroll animation
   const smoothScrollToBottom = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const targetScroll = container.scrollHeight - container.clientHeight;
-    targetScrollRef.current = targetScroll;
-
-    // Cancel any existing animation
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
@@ -30,20 +51,16 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
       const container = containerRef.current;
       if (!container) return;
 
-      // Recalculate target each frame (scrollHeight changes as new entries arrive)
       const target = container.scrollHeight - container.clientHeight;
       const currentScroll = container.scrollTop;
       const diff = target - currentScroll;
 
-      // Stop if close enough
       if (Math.abs(diff) < 1) {
         container.scrollTop = target;
         animationRef.current = null;
         return;
       }
 
-      // Easing: move 15% of remaining distance each frame
-      isProgrammaticScroll.current = true;
       container.scrollTop = currentScroll + diff * 0.15;
       animationRef.current = requestAnimationFrame(animate);
     };
@@ -51,13 +68,9 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
     animationRef.current = requestAnimationFrame(animate);
   }, []);
 
-  // Track if user has scrolled up (disable auto-scroll)
+  // Handle scroll — only react to user-initiated scrolls
   const handleScroll = useCallback(() => {
-    // Ignore scroll events caused by our own animation
-    if (isProgrammaticScroll.current) {
-      isProgrammaticScroll.current = false;
-      return;
-    }
+    if (!userInteracting.current) return;
 
     const container = containerRef.current;
     if (!container) return;
@@ -68,7 +81,6 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
       animationRef.current = null;
     }
 
-    // Check if user is near bottom (within 150px)
     const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
     setAutoScroll(isNearBottom);
   }, []);
@@ -83,7 +95,6 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   useEffect(() => {
     if (!autoScroll) return;
 
-    // Use double RAF for iOS Safari compatibility, then smooth scroll
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         smoothScrollToBottom();
