@@ -11,6 +11,7 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
   const [autoScroll, setAutoScroll] = useState(true);
   const animationRef = useRef<number | null>(null);
   const targetScrollRef = useRef(0);
+  const isProgrammaticScroll = useRef(false);
 
   // Smooth scroll animation like movie credits
   const smoothScrollToBottom = useCallback(() => {
@@ -42,6 +43,7 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
       }
 
       // Easing: move 15% of remaining distance each frame
+      isProgrammaticScroll.current = true;
       container.scrollTop = currentScroll + diff * 0.15;
       animationRef.current = requestAnimationFrame(animate);
     };
@@ -51,10 +53,16 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
 
   // Track if user has scrolled up (disable auto-scroll)
   const handleScroll = useCallback(() => {
+    // Ignore scroll events caused by our own animation
+    if (isProgrammaticScroll.current) {
+      isProgrammaticScroll.current = false;
+      return;
+    }
+
     const container = containerRef.current;
     if (!container) return;
 
-    // If user scrolls during animation, stop the animation and let them scroll freely
+    // User is manually scrolling — stop any running animation
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
