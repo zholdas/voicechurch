@@ -44,20 +44,8 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
     };
   }, []);
 
-  // onScroll: only re-enable auto-scroll if user is NOT touching
-  const handleScroll = useCallback(() => {
-    if (userTouchingRef.current) return;
-    if (autoScrollRef.current) return;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
-    if (isNearBottom) {
-      autoScrollRef.current = true;
-      setAutoScroll(true);
-    }
-  }, []);
+  // No auto-re-enable from scroll position — only the button re-enables auto-scroll
+  const handleScroll = useCallback(() => {}, []);
 
   // Scroll to bottom button handler
   const scrollToBottom = useCallback(() => {
