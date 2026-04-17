@@ -8,6 +8,9 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
 
+  // Translation pipeline: 'legacy' (Deepgram+DeepL+GoogleTTS) or 'deepl-voice' (DeepL Voice API)
+  translationPipeline: (process.env.TRANSLATION_PIPELINE || 'legacy') as 'legacy' | 'deepl-voice',
+
   session: {
     secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',
     cookieDomain: process.env.COOKIE_DOMAIN || undefined,
@@ -29,6 +32,10 @@ export const config = {
 
   deepl: {
     apiKey: process.env.DEEPL_API_KEY || '',
+  },
+
+  deeplVoice: {
+    apiKey: process.env.DEEPL_VOICE_API_KEY || process.env.DEEPL_API_KEY || '',
   },
 
   qrMapper: {

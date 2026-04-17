@@ -15,13 +15,18 @@ import {
   removeClient,
   updateRoomSourceLanguage,
   broadcastToListeners,
+  sendToListenersByLanguage,
+  getUniqueListenerLanguages,
+  setPipelineConnection,
+  hasPipelineConnection,
 } from './rooms.js';
-import {
-  createDeepgramConnection,
-  sendAudioToDeepgram,
-  closeDeepgramConnection,
-} from '../services/deepgram.js';
+import { getPipeline } from '../services/pipeline-factory.js';
+import { setTargetLanguagesProvider } from '../services/legacy-pipeline.js';
+import type { TranscriptResult } from '../services/pipeline.js';
 import { isValidLanguageCode } from '../languages.js';
+
+// Provide the target languages lookup to the legacy pipeline
+setTargetLanguagesProvider(getUniqueListenerLanguages);
 
 function send(ws: WebSocket, message: ServerMessage): void {
   if (ws.readyState === ws.OPEN) {
@@ -232,8 +237,9 @@ function handleChangeSourceLanguage(ws: ExtendedWebSocket, newLanguage: Language
 
   const oldLanguage = room.sourceLanguage;
 
-  // Close existing Deepgram connection (next audio chunk will create a new one)
-  closeDeepgramConnection(ws.roomId);
+  // Close existing pipeline connection (next audio chunk will create a new one)
+  getPipeline().closeConnection(ws.roomId);
+  setPipelineConnection(ws.roomId, false);
 
   // Update room's source language
   updateRoomSourceLanguage(ws.roomId, newLanguage);
@@ -252,8 +258,34 @@ function handleEndBroadcast(ws: ExtendedWebSocket): void {
     return;
   }
 
-  closeDeepgramConnection(ws.roomId);
+  getPipeline().closeConnection(ws.roomId);
+  setPipelineConnection(ws.roomId, false);
   removeClient(ws);
+}
+
+function handleTranscriptResult(roomId: string, result: TranscriptResult): void {
+  if (result.isFinal) {
+    const messagesMap = new Map<LanguageCode, ServerMessage>();
+    for (const [lang, { translated, audio }] of result.translations) {
+      messagesMap.set(lang, {
+        type: 'transcript',
+        source: result.source,
+        translated,
+        isFinal: true,
+        timestamp: result.timestamp,
+        audio,
+      });
+    }
+    sendToListenersByLanguage(roomId, messagesMap);
+  } else {
+    broadcastToListeners(roomId, {
+      type: 'transcript',
+      source: result.source,
+      translated: result.source,
+      isFinal: false,
+      timestamp: result.timestamp,
+    });
+  }
 }
 
 function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
@@ -264,19 +296,23 @@ function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
   const room = getRoom(ws.roomId);
   if (!room) return;
 
-  // Create Deepgram connection lazily on first audio chunk
-  if (!room.deepgramConnection) {
-    console.log(`Starting Deepgram for room: ${ws.roomId}`);
-    createDeepgramConnection(ws.roomId);
+  const pipeline = getPipeline();
+
+  // Create pipeline connection lazily on first audio chunk
+  if (!room.pipelineConnection) {
+    console.log(`Starting pipeline for room: ${ws.roomId}`);
+    pipeline.createConnection(ws.roomId, room.sourceLanguage, handleTranscriptResult);
+    setPipelineConnection(ws.roomId, true);
   }
 
-  sendAudioToDeepgram(ws.roomId, data);
+  pipeline.sendAudio(ws.roomId, data);
 }
 
 function handleDisconnect(ws: ExtendedWebSocket): void {
   if (ws.roomId) {
     if (ws.role === 'broadcaster') {
-      closeDeepgramConnection(ws.roomId);
+      getPipeline().closeConnection(ws.roomId);
+      setPipelineConnection(ws.roomId, false);
     }
     removeClient(ws);
   }

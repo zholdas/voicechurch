@@ -40,7 +40,7 @@ export function initRooms(): void {
       createdAt: dbRoom.createdAt,
       broadcaster: null,
       listeners: new Set(),
-      deepgramConnection: null,
+      pipelineConnection: false,
       isActive: false,
       qrId: dbRoom.qrId,
       qrImageUrl: dbRoom.qrImageUrl,
@@ -94,7 +94,7 @@ export function createRoom(options?: {
     createdAt: new Date(),
     broadcaster: null,
     listeners: new Set(),
-    deepgramConnection: null,
+    pipelineConnection: false,
     isActive: false,
     qrId: null,
     qrImageUrl: null,
@@ -151,7 +151,7 @@ export function createPersistentRoom(options: {
     createdAt: dbRoom.createdAt,
     broadcaster: null,
     listeners: new Set(),
-    deepgramConnection: null,
+    pipelineConnection: false,
     isActive: false,
     qrId: dbRoom.qrId,
     qrImageUrl: dbRoom.qrImageUrl,
@@ -227,11 +227,6 @@ export function deletePersistentRoom(roomId: string, ownerId: string): boolean {
     return false;
   }
 
-  // Close connections
-  if (room.deepgramConnection) {
-    (room.deepgramConnection as { close: () => void }).close();
-  }
-
   // Notify listeners
   broadcastToListeners(roomId, { type: 'broadcast_ended' });
 
@@ -252,10 +247,6 @@ export function getRoom(roomId: string): Room | undefined {
 export function deleteRoom(roomId: string): boolean {
   const room = rooms.get(roomId);
   if (room) {
-    // Close Deepgram connection if exists
-    if (room.deepgramConnection) {
-      (room.deepgramConnection as { close: () => void }).close();
-    }
     rooms.delete(roomId);
     console.log(`Room deleted: ${roomId}`);
     return true;
@@ -331,11 +322,7 @@ export function removeClient(ws: ExtendedWebSocket): void {
     // Notify listeners that broadcast ended
     broadcastToListeners(roomId, { type: 'broadcast_ended' });
 
-    // Close Deepgram connection
-    if (room.deepgramConnection) {
-      (room.deepgramConnection as { close: () => void }).close();
-      room.deepgramConnection = null;
-    }
+    room.pipelineConnection = false;
 
     console.log(`Broadcaster left room: ${roomId}`);
 
@@ -425,16 +412,16 @@ export function notifyListenerCount(roomId: string): void {
   }
 }
 
-export function setDeepgramConnection(roomId: string, connection: unknown): void {
+export function setPipelineConnection(roomId: string, active: boolean): void {
   const room = rooms.get(roomId);
   if (room) {
-    room.deepgramConnection = connection;
+    room.pipelineConnection = active;
   }
 }
 
-export function getDeepgramConnection(roomId: string): unknown {
+export function hasPipelineConnection(roomId: string): boolean {
   const room = rooms.get(roomId);
-  return room?.deepgramConnection || null;
+  return room?.pipelineConnection || false;
 }
 
 export function getRoomCount(): number {

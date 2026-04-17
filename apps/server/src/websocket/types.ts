@@ -87,7 +87,7 @@ export interface Room {
   createdAt: Date;
   broadcaster: ExtendedWebSocket | null;
   listeners: Set<ExtendedWebSocket>;
-  deepgramConnection: unknown;
+  pipelineConnection: boolean; // true when a pipeline connection is active
   isActive: boolean;
   qrId: string | null;
   qrImageUrl: string | null;
