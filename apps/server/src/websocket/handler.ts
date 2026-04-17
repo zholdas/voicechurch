@@ -283,6 +283,9 @@ function handleTranscriptResult(roomId: string, result: TranscriptResult): void 
   }
 }
 
+// Track audio chunk count per room for debug logging
+const audioChunkCount = new Map<string, number>();
+
 function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
   if (ws.role !== 'broadcaster' || !ws.roomId) {
     return;
@@ -291,13 +294,22 @@ function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
   const room = getRoom(ws.roomId);
   if (!room) return;
 
+  // Log first audio chunk to confirm audio is flowing
+  const count = (audioChunkCount.get(ws.roomId) || 0) + 1;
+  audioChunkCount.set(ws.roomId, count);
+  if (count === 1) {
+    console.log(`[audio] First audio chunk received for room: ${ws.roomId} (${data.length} bytes, role: ${ws.role})`);
+  }
+
   const pipeline = getPipeline();
 
   // Create pipeline connection lazily — wait until at least one listener is present
   if (!room.pipelineConnection) {
     const targetLanguages = getUniqueListenerLanguages(ws.roomId);
     if (targetLanguages.length === 0) {
-      // No listeners yet — skip, will retry on next audio chunk
+      if (count <= 3) {
+        console.log(`[audio] No listeners yet for room ${ws.roomId}, skipping chunk #${count}`);
+      }
       return;
     }
     console.log(`Starting pipeline for room: ${ws.roomId} (targets: ${targetLanguages.join(', ')})`);
