@@ -149,7 +149,7 @@ export class DeepLVoicePipeline implements TranslationPipeline {
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       // Send end of stream signal
       try {
-        state.ws.send(JSON.stringify({ type: 'end_of_source_media' }));
+        state.ws.send(JSON.stringify({ end_of_source_media: {} }));
       } catch {
         // Ignore send errors during close
       }
@@ -163,8 +163,9 @@ export class DeepLVoicePipeline implements TranslationPipeline {
   private sendAudioChunk(ws: WebSocket, audioData: Buffer): void {
     try {
       const message = {
-        type: 'source_media_chunk',
-        data: audioData.toString('base64'),
+        source_media_chunk: {
+          data: audioData.toString('base64'),
+        },
       };
       ws.send(JSON.stringify(message));
     } catch (error) {
@@ -176,72 +177,56 @@ export class DeepLVoicePipeline implements TranslationPipeline {
     const state = sessions.get(roomId);
     if (!state) return;
 
-    switch (message.type) {
-      case 'source_transcript_update': {
-        // Interim transcription from source language
-        const text = this.extractTranscriptText(message);
-        if (text) {
-          state.onResult(roomId, {
-            source: text,
-            translations: new Map(),
-            isFinal: false,
-            timestamp: Date.now(),
-          });
-        }
-        break;
+    // DeepL Voice uses object keys as message types, not a "type" field
+    if (message.source_transcript_update) {
+      const update = message.source_transcript_update;
+      const text = this.extractTranscriptText(update);
+      if (text) {
+        state.onResult(roomId, {
+          source: text,
+          translations: new Map(),
+          isFinal: false,
+          timestamp: Date.now(),
+        });
       }
+    } else if (message.target_transcript_update) {
+      const update = message.target_transcript_update;
+      const text = this.extractTranscriptText(update);
+      const targetLang = this.extractTargetLanguage(update, state.targetLanguages);
 
-      case 'target_transcript_update': {
-        // Translated text for a target language
-        const sourceText = this.extractSourceText(message);
-        const translatedText = this.extractTranscriptText(message);
-        const targetLang = this.extractTargetLanguage(message, state.targetLanguages);
+      if (text && targetLang) {
+        const translations = new Map<LanguageCode, { translated: string; audio?: string }>();
+        translations.set(targetLang, { translated: text });
 
-        if (translatedText && targetLang) {
-          const translations = new Map<LanguageCode, { translated: string; audio?: string }>();
-          translations.set(targetLang, { translated: translatedText });
+        // Use source transcript if available, otherwise use translated text
+        const sourceText = update.source_text || text;
 
-          state.onResult(roomId, {
-            source: sourceText || translatedText,
-            translations,
-            isFinal: true,
-            timestamp: Date.now(),
-          });
-        }
-        break;
+        state.onResult(roomId, {
+          source: sourceText,
+          translations,
+          isFinal: true,
+          timestamp: Date.now(),
+        });
       }
-
-      case 'target_media_chunk': {
-        // Audio for translated speech (closed beta)
-        // When available, this would include base64 audio data
-        break;
-      }
-
-      case 'error': {
-        console.error(`DeepL Voice error for room ${roomId}:`, message);
-        break;
-      }
+    } else if (message.target_media_chunk) {
+      // Audio for translated speech (closed beta)
+    } else if (message.error) {
+      console.error(`DeepL Voice error for room ${roomId}:`, message.error);
     }
   }
 
-  private extractTranscriptText(message: any): string {
-    // DeepL Voice returns concluded and tentative segments
-    const segments = message.concluded_segments || [];
-    const tentative = message.tentative_segment?.text || '';
+  private extractTranscriptText(update: any): string {
+    // DeepL Voice returns concluded_segments and tentative_segment
+    const segments = update.concluded_segments || [];
+    const tentative = update.tentative_segment?.text || '';
     const concludedText = segments.map((s: any) => s.text || '').join(' ');
     return (concludedText + ' ' + tentative).trim();
   }
 
-  private extractSourceText(message: any): string {
-    // Some target updates include source reference
-    return message.source_text || '';
-  }
-
-  private extractTargetLanguage(message: any, targetLanguages: LanguageCode[]): LanguageCode | null {
-    const lang = message.target_language?.toLowerCase();
+  private extractTargetLanguage(update: any, targetLanguages: LanguageCode[]): LanguageCode | null {
+    const lang = update.target_language?.toLowerCase();
     if (!lang) return targetLanguages[0] || null;
 
-    // Match DeepL language code to our LanguageCode
     for (const target of targetLanguages) {
       const cfg = getLanguageConfig(target);
       if (cfg.deeplTargetCode.toLowerCase() === lang ||
