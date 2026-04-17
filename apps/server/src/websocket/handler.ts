@@ -18,7 +18,6 @@ import {
   sendToListenersByLanguage,
   getUniqueListenerLanguages,
   setPipelineConnection,
-  hasPipelineConnection,
 } from './rooms.js';
 import { getPipeline } from '../services/pipeline-factory.js';
 import type { TranscriptResult } from '../services/pipeline.js';
@@ -294,9 +293,14 @@ function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
 
   const pipeline = getPipeline();
 
-  // Create pipeline connection lazily on first audio chunk
+  // Create pipeline connection lazily — wait until at least one listener is present
   if (!room.pipelineConnection) {
-    console.log(`Starting pipeline for room: ${ws.roomId}`);
+    const targetLanguages = getUniqueListenerLanguages(ws.roomId);
+    if (targetLanguages.length === 0) {
+      // No listeners yet — skip, will retry on next audio chunk
+      return;
+    }
+    console.log(`Starting pipeline for room: ${ws.roomId} (targets: ${targetLanguages.join(', ')})`);
     pipeline.createConnection(ws.roomId, room.sourceLanguage, getUniqueListenerLanguages, handleTranscriptResult);
     setPipelineConnection(ws.roomId, true);
   }
