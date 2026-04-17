@@ -9,43 +9,50 @@ interface TranscriptDisplayProps {
 export default function TranscriptDisplay({ entries, fontSize }: TranscriptDisplayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
-  const autoScrollRef = useRef(true); // mirror for event handlers (no stale closure)
+  const autoScrollRef = useRef(true);
+  const userTouchingRef = useRef(false);
 
-  const stopAutoScroll = useCallback(() => {
-    autoScrollRef.current = false;
-    setAutoScroll(false);
-  }, []);
-
-  // When user touches or scrolls with wheel — immediately pause auto-scroll
+  // Detect user touch/wheel to disable auto-scroll
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const onUserScroll = () => {
-      if (autoScrollRef.current) {
-        stopAutoScroll();
-      }
+    const onTouchStart = () => {
+      userTouchingRef.current = true;
+      autoScrollRef.current = false;
+      setAutoScroll(false);
     };
 
-    // touchstart fires before any scroll — catches iOS Safari
-    container.addEventListener('touchstart', onUserScroll, { passive: true });
-    container.addEventListener('wheel', onUserScroll, { passive: true });
+    const onTouchEnd = () => {
+      // Delay clearing touch flag to cover iOS inertial scrolling
+      setTimeout(() => { userTouchingRef.current = false; }, 1000);
+    };
+
+    const onWheel = () => {
+      autoScrollRef.current = false;
+      setAutoScroll(false);
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('wheel', onWheel, { passive: true });
 
     return () => {
-      container.removeEventListener('touchstart', onUserScroll);
-      container.removeEventListener('wheel', onUserScroll);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('wheel', onWheel);
     };
-  }, [stopAutoScroll]);
+  }, []);
 
-  // Re-enable auto-scroll when user scrolls back to bottom
+  // onScroll: only re-enable auto-scroll if user is NOT touching
   const handleScroll = useCallback(() => {
+    if (userTouchingRef.current) return;
+    if (autoScrollRef.current) return;
+
     const container = containerRef.current;
     if (!container) return;
 
-    // Already auto-scrolling — nothing to check
-    if (autoScrollRef.current) return;
-
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
     if (isNearBottom) {
       autoScrollRef.current = true;
       setAutoScroll(true);
