@@ -109,12 +109,6 @@ export default function Dashboard() {
     e.preventDefault();
     setError(null);
 
-    // Validate that source and target languages are different
-    if (newRoom.sourceLanguage === newRoom.targetLanguage) {
-      setError('Source and target languages must be different');
-      return;
-    }
-
     setIsCreating(true);
 
     try {
@@ -167,10 +161,9 @@ export default function Dashboard() {
   }
 
   // Format language display
-  function formatLanguages(sourceLanguage: LanguageCode, targetLanguage: LanguageCode): string {
+  function formatLanguage(sourceLanguage: LanguageCode): string {
     const srcInfo = getLanguageInfo(sourceLanguage);
-    const tgtInfo = getLanguageInfo(targetLanguage);
-    return `${srcInfo?.name || sourceLanguage} → ${tgtInfo?.name || targetLanguage}`;
+    return `Speaker: ${srcInfo?.name || sourceLanguage}`;
   }
 
   if (authLoading) {
@@ -427,62 +420,30 @@ export default function Dashboard() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Source Language (Speaker)
-                  </label>
-                  <select
-                    value={newRoom.sourceLanguage}
-                    onChange={(e) =>
-                      setNewRoom({
-                        ...newRoom,
-                        sourceLanguage: e.target.value as LanguageCode,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {SUPPORTED_LANGUAGES.map((lang) => (
-                      <option key={lang.code} value={lang.code}>
-                        {lang.name} ({lang.nativeName})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Target Language (Listener)
-                  </label>
-                  <select
-                    value={newRoom.targetLanguage}
-                    onChange={(e) =>
-                      setNewRoom({
-                        ...newRoom,
-                        targetLanguage: e.target.value as LanguageCode,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {SUPPORTED_LANGUAGES.map((lang) => (
-                      <option key={lang.code} value={lang.code}>
-                        {lang.name} ({lang.nativeName})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Speaker Language
+                </label>
+                <select
+                  value={newRoom.sourceLanguage}
+                  onChange={(e) =>
+                    setNewRoom({
+                      ...newRoom,
+                      sourceLanguage: e.target.value as LanguageCode,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name} ({lang.nativeName})
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Listeners choose their own language when joining
+                </p>
               </div>
-
-              <p className="text-sm text-gray-500">
-                Listeners will hear speech in{' '}
-                <strong>
-                  {getLanguageInfo(newRoom.targetLanguage)?.name || newRoom.targetLanguage}
-                </strong>{' '}
-                based on{' '}
-                <strong>
-                  {getLanguageInfo(newRoom.sourceLanguage)?.name || newRoom.sourceLanguage}
-                </strong>{' '}
-                input
-              </p>
 
               <div className="flex items-center gap-2">
                 <input
@@ -566,7 +527,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                  <span>{formatLanguages(room.sourceLanguage, room.targetLanguage)}</span>
+                  <span>{formatLanguage(room.sourceLanguage)}</span>
                   <span>{room.listenerCount} listeners</span>
                 </div>
 
