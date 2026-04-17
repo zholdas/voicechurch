@@ -9,107 +9,71 @@ interface TranscriptDisplayProps {
 export default function TranscriptDisplay({ entries, fontSize }: TranscriptDisplayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
-  const animationRef = useRef<number | null>(null);
-  const userInteracting = useRef(false);
+  const autoScrollRef = useRef(true); // mirror for event handlers (no stale closure)
 
-  // Detect user interaction (touch or mouse wheel) to distinguish from programmatic scroll
+  const stopAutoScroll = useCallback(() => {
+    autoScrollRef.current = false;
+    setAutoScroll(false);
+  }, []);
+
+  // When user touches or scrolls with wheel — immediately pause auto-scroll
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const onUserStart = () => { userInteracting.current = true; };
-    const onUserEnd = () => {
-      // Delay reset so the scroll events from inertia are still captured
-      setTimeout(() => { userInteracting.current = false; }, 200);
+    const onUserScroll = () => {
+      if (autoScrollRef.current) {
+        stopAutoScroll();
+      }
     };
 
-    container.addEventListener('touchstart', onUserStart, { passive: true });
-    container.addEventListener('touchend', onUserEnd, { passive: true });
-    container.addEventListener('wheel', onUserStart, { passive: true });
-    container.addEventListener('mousedown', onUserStart);
-    container.addEventListener('mouseup', onUserEnd);
+    // touchstart fires before any scroll — catches iOS Safari
+    container.addEventListener('touchstart', onUserScroll, { passive: true });
+    container.addEventListener('wheel', onUserScroll, { passive: true });
 
     return () => {
-      container.removeEventListener('touchstart', onUserStart);
-      container.removeEventListener('touchend', onUserEnd);
-      container.removeEventListener('wheel', onUserStart);
-      container.removeEventListener('mousedown', onUserStart);
-      container.removeEventListener('mouseup', onUserEnd);
+      container.removeEventListener('touchstart', onUserScroll);
+      container.removeEventListener('wheel', onUserScroll);
     };
-  }, []);
+  }, [stopAutoScroll]);
 
-  // Smooth scroll animation
-  const smoothScrollToBottom = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-
-    const animate = () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      const target = container.scrollHeight - container.clientHeight;
-      const currentScroll = container.scrollTop;
-      const diff = target - currentScroll;
-
-      if (Math.abs(diff) < 1) {
-        container.scrollTop = target;
-        animationRef.current = null;
-        return;
-      }
-
-      container.scrollTop = currentScroll + diff * 0.15;
-      animationRef.current = requestAnimationFrame(animate);
-    };
-
-    animationRef.current = requestAnimationFrame(animate);
-  }, []);
-
-  // Handle scroll — only react to user-initiated scrolls
+  // Re-enable auto-scroll when user scrolls back to bottom
   const handleScroll = useCallback(() => {
-    if (!userInteracting.current) return;
-
     const container = containerRef.current;
     if (!container) return;
 
-    // User is manually scrolling — stop any running animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
+    // Already auto-scrolling — nothing to check
+    if (autoScrollRef.current) return;
 
-    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-    setAutoScroll(isNearBottom);
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    if (isNearBottom) {
+      autoScrollRef.current = true;
+      setAutoScroll(true);
+    }
   }, []);
 
-  // Scroll to bottom and re-enable auto-scroll
+  // Scroll to bottom button handler
   const scrollToBottom = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    autoScrollRef.current = true;
     setAutoScroll(true);
-    smoothScrollToBottom();
-  }, [smoothScrollToBottom]);
+    container.scrollTop = container.scrollHeight;
+  }, []);
 
   // Auto-scroll to bottom when new entries arrive
   useEffect(() => {
-    if (!autoScroll) return;
+    if (!autoScrollRef.current) return;
 
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Simple instant scroll — no animation to fight with user input
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        smoothScrollToBottom();
-      });
+      container.scrollTop = container.scrollHeight;
     });
-  }, [entries, autoScroll, smoothScrollToBottom]);
-
-  // Cleanup animation on unmount
-  useEffect(() => {
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, []);
+  }, [entries]);
 
   if (entries.length === 0) {
     return (
