@@ -269,10 +269,8 @@ export function addBroadcaster(roomId: string, ws: ExtendedWebSocket, userId?: s
   ws.role = 'broadcaster';
   ws.userId = userId;
 
-  // Start broadcast tracking if user is authenticated
-  if (userId) {
-    startBroadcastTracking(roomId, userId);
-  }
+  // Start broadcast tracking (with or without authentication)
+  startBroadcastTracking(roomId, userId || 'anonymous');
 
   // Notify listeners that broadcast started
   broadcastToListeners(roomId, { type: 'broadcast_started' });
