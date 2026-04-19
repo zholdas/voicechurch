@@ -9,6 +9,7 @@ import {
   getBroadcastLogsCount,
   getRoomById,
   getUserById,
+  getUserByApiToken,
   hasUsedTrial,
 } from '../db/index.js';
 import {
@@ -20,13 +21,25 @@ import type { BillingPeriod } from '../db/index.js';
 
 const router = Router();
 
-// Middleware to check authentication
+// Middleware to check authentication (session or API token)
 function requireAuth(req: any, res: any, next: any) {
+  // Check session auth first
   if (req.isAuthenticated() && req.user) {
-    next();
-  } else {
-    res.status(401).json({ error: 'Authentication required' });
+    return next();
   }
+
+  // Check for Bearer token (mobile app)
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const user = getUserByApiToken(token);
+    if (user) {
+      req.user = user;
+      return next();
+    }
+  }
+
+  res.status(401).json({ error: 'Authentication required' });
 }
 
 // Get all plans
