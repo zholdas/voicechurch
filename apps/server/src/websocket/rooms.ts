@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type { Room, ExtendedWebSocket, ServerMessage, LanguageCode } from './types.js';
 import { languagesToDirection } from './types.js';
 import * as db from '../db/index.js';
+import * as recorder from '../services/recorder.js';
 
 // Map of active broadcast timers for usage tracking
 const broadcastTimers = new Map<string, NodeJS.Timeout>();
@@ -540,6 +541,9 @@ export function startBroadcastTracking(roomId: string, userId: string): void {
   activeBroadcastLogs.set(roomId, log.id);
   peakListeners.set(roomId, room.listeners.size);
 
+  // Start recording
+  recorder.startRecording(roomId, log.id);
+
   // Start usage timer (increment every minute)
   const timer = setInterval(() => {
     const usage = db.incrementUsage(userId, 1);
@@ -585,6 +589,11 @@ export function stopBroadcastTracking(roomId: string): void {
     clearInterval(timer);
     broadcastTimers.delete(roomId);
   }
+
+  // Finalize recording (async — uploads audio to R2, saves transcripts)
+  recorder.finalize(roomId).catch(err => {
+    console.error(`Failed to finalize recording for room ${roomId}:`, err);
+  });
 
   // End broadcast log
   const logId = activeBroadcastLogs.get(roomId);

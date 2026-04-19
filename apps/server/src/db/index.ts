@@ -94,6 +94,31 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: transcript_records table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS transcript_records (
+    id TEXT PRIMARY KEY,
+    broadcast_log_id TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    source_text TEXT NOT NULL,
+    translations TEXT NOT NULL,
+    FOREIGN KEY (broadcast_log_id) REFERENCES broadcast_logs(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_transcript_records_log ON transcript_records(broadcast_log_id);
+`);
+
+// Migration: Add audio_url and transcript_count to broadcast_logs
+try {
+  db.exec(`ALTER TABLE broadcast_logs ADD COLUMN audio_url TEXT`);
+} catch {
+  // Column already exists
+}
+try {
+  db.exec(`ALTER TABLE broadcast_logs ADD COLUMN transcript_count INTEGER DEFAULT 0`);
+} catch {
+  // Column already exists
+}
+
 // Create billing tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS plans (
@@ -692,6 +717,8 @@ export interface DbBroadcastLog {
   peakListeners: number;
   sourceLanguage: string | null;
   targetLanguage: string | null;
+  audioUrl: string | null;
+  transcriptCount: number;
 }
 
 export function createBroadcastLog(data: {
@@ -777,7 +804,52 @@ function mapBroadcastLogRow(row: any): DbBroadcastLog {
     peakListeners: row.peak_listeners || 0,
     sourceLanguage: row.source_language,
     targetLanguage: row.target_language,
+    audioUrl: row.audio_url || null,
+    transcriptCount: row.transcript_count || 0,
   };
+}
+
+// Save transcripts for a broadcast
+export function saveTranscripts(broadcastLogId: string, entries: Array<{
+  timestamp: number;
+  sourceText: string;
+  translations: string;
+}>): void {
+  const stmt = db.prepare(`
+    INSERT INTO transcript_records (id, broadcast_log_id, timestamp, source_text, translations)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const insertMany = db.transaction((items: typeof entries) => {
+    for (const item of items) {
+      stmt.run(crypto.randomUUID(), broadcastLogId, item.timestamp, item.sourceText, item.translations);
+    }
+  });
+  insertMany(entries);
+}
+
+// Get transcripts for a broadcast
+export function getTranscripts(broadcastLogId: string): Array<{
+  timestamp: number;
+  sourceText: string;
+  translations: Record<string, string>;
+}> {
+  const stmt = db.prepare(`
+    SELECT * FROM transcript_records WHERE broadcast_log_id = ? ORDER BY timestamp ASC
+  `);
+  const rows = stmt.all(broadcastLogId) as any[];
+  return rows.map(row => ({
+    timestamp: row.timestamp,
+    sourceText: row.source_text,
+    translations: JSON.parse(row.translations || '{}'),
+  }));
+}
+
+// Update broadcast log with recording info
+export function updateBroadcastLogRecording(logId: string, audioUrl: string | null, transcriptCount: number): void {
+  const stmt = db.prepare(`
+    UPDATE broadcast_logs SET audio_url = COALESCE(?, audio_url), transcript_count = ? WHERE id = ?
+  `);
+  stmt.run(audioUrl, transcriptCount, logId);
 }
 
 // ============================================

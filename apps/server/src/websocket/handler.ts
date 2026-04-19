@@ -21,6 +21,7 @@ import {
 } from './rooms.js';
 import { getPipeline } from '../services/pipeline-factory.js';
 import type { TranscriptResult } from '../services/pipeline.js';
+import * as recorder from '../services/recorder.js';
 import { isValidLanguageCode } from '../languages.js';
 
 function send(ws: WebSocket, message: ServerMessage): void {
@@ -273,6 +274,11 @@ function handleTranscriptResult(roomId: string, result: TranscriptResult): void 
       });
     }
     sendToListenersByLanguage(roomId, messagesMap);
+
+    // Save final translations to recording
+    if (result.isFinal) {
+      recorder.addTranscript(roomId, result.source, result.translations);
+    }
   } else {
     // No translations (interim source text) — broadcast to all
     broadcastToListeners(roomId, {
@@ -320,6 +326,9 @@ function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
   }
 
   pipeline.sendAudio(ws.roomId, data);
+
+  // Buffer audio for recording
+  recorder.writeAudioChunk(ws.roomId, data);
 }
 
 function handleDisconnect(ws: ExtendedWebSocket): void {

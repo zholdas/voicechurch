@@ -124,6 +124,8 @@ export interface BroadcastLog {
   peakListeners: number;
   sourceLanguage: string;
   targetLanguage: string;
+  audioUrl: string | null;
+  transcriptCount: number;
 }
 
 export interface BroadcastsResponse {

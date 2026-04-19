@@ -337,6 +337,26 @@ export default function Dashboard() {
                         <div className="flex items-center gap-4 text-gray-600">
                           <span>{formatDuration(broadcast.durationMinutes)}</span>
                           <span>{broadcast.peakListeners} listeners</span>
+                          {broadcast.audioUrl && (
+                            <a
+                              href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/audio`}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Audio
+                            </a>
+                          )}
+                          {broadcast.transcriptCount > 0 && (
+                            <a
+                              href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/transcript?format=txt`}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Transcript
+                            </a>
+                          )}
                         </div>
                       </div>
                     ))}

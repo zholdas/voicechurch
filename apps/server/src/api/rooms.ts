@@ -13,6 +13,8 @@ import {
 import type { LanguageCode } from '../websocket/types.js';
 import { directionToLanguages } from '../websocket/types.js';
 import { isValidLanguageCode } from '../languages.js';
+import * as db from '../db/index.js';
+import { getSignedDownloadUrl, isR2Configured } from '../services/r2.js';
 import { qrMapperService } from '../services/qr.js';
 import { generateQRCode } from '../services/qr-local.js';
 import { config } from '../config.js';
@@ -382,6 +384,87 @@ router.get('/:id/qr', requireAuth, async (req, res) => {
     qrImageUrl: room.qrImageUrl,
     scanCount: 0,
   });
+});
+
+// ============================================
+// Broadcast Recording Downloads
+// ============================================
+
+// GET /api/broadcasts/:logId/audio — redirect to signed R2 URL
+router.get('/broadcasts/:logId/audio', requireAuth, async (req: Request, res: Response) => {
+  const { logId } = req.params;
+  const user = req.user as any;
+
+  const log = db.getBroadcastLogById(logId);
+  if (!log) {
+    return res.status(404).json({ error: 'Broadcast not found' });
+  }
+
+  if (log.userId !== user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  if (!log.audioUrl) {
+    return res.status(404).json({ error: 'No audio recording available' });
+  }
+
+  if (!isR2Configured()) {
+    return res.status(500).json({ error: 'Storage not configured' });
+  }
+
+  try {
+    const url = await getSignedDownloadUrl(log.audioUrl);
+    res.redirect(url);
+  } catch (error) {
+    console.error('Failed to generate download URL:', error);
+    res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
+// GET /api/broadcasts/:logId/transcript — download transcript as JSON
+router.get('/broadcasts/:logId/transcript', requireAuth, (req: Request, res: Response) => {
+  const { logId } = req.params;
+  const user = req.user as any;
+
+  const log = db.getBroadcastLogById(logId);
+  if (!log) {
+    return res.status(404).json({ error: 'Broadcast not found' });
+  }
+
+  if (log.userId !== user.id) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  const transcripts = db.getTranscripts(logId);
+  if (transcripts.length === 0) {
+    return res.status(404).json({ error: 'No transcript available' });
+  }
+
+  const format = req.query.format || 'json';
+
+  if (format === 'txt') {
+    // Plain text format: source → translation per line
+    const lines = transcripts.map(t => {
+      const translations = Object.entries(t.translations)
+        .map(([lang, text]) => `[${lang}] ${text}`)
+        .join(' | ');
+      return `${t.sourceText}\n${translations}`;
+    });
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="transcript-${logId}.txt"`);
+    res.send(lines.join('\n\n'));
+  } else {
+    // JSON format
+    res.setHeader('Content-Disposition', `attachment; filename="transcript-${logId}.json"`);
+    res.json({
+      broadcastId: logId,
+      startedAt: log.startedAt,
+      endedAt: log.endedAt,
+      sourceLanguage: log.sourceLanguage,
+      transcripts,
+    });
+  }
 });
 
 export { router as roomsRouter };
