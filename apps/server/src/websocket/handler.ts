@@ -259,20 +259,22 @@ function handleEndBroadcast(ws: ExtendedWebSocket): void {
 }
 
 function handleTranscriptResult(roomId: string, result: TranscriptResult): void {
-  if (result.isFinal) {
+  if (result.translations.size > 0) {
+    // Has translations — send personalized messages per language
     const messagesMap = new Map<LanguageCode, ServerMessage>();
     for (const [lang, { translated, audio }] of result.translations) {
       messagesMap.set(lang, {
         type: 'transcript',
         source: result.source,
         translated,
-        isFinal: true,
+        isFinal: result.isFinal,
         timestamp: result.timestamp,
         audio,
       });
     }
     sendToListenersByLanguage(roomId, messagesMap);
   } else {
+    // No translations (interim source text) — broadcast to all
     broadcastToListeners(roomId, {
       type: 'transcript',
       source: result.source,
