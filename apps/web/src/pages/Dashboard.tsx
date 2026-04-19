@@ -64,14 +64,17 @@ export default function Dashboard() {
       const status = await billingApi.getStatus();
       setBillingConfigured(status.configured);
 
-      if (status.configured) {
-        // Load subscription info
-        const subData = await billingApi.getSubscription();
-        setSubscription(subData);
-
-        // Load recent broadcasts
+      // Always load broadcasts (for recording downloads)
+      try {
         const broadcastData = await billingApi.getBroadcasts(10, 0);
         setBroadcasts(broadcastData.broadcasts);
+      } catch {
+        // OK if broadcasts endpoint fails
+      }
+
+      if (status.configured) {
+        const subData = await billingApi.getSubscription();
+        setSubscription(subData);
       }
     } catch (err) {
       console.error('Failed to load billing info:', err);
@@ -362,6 +365,68 @@ export default function Dashboard() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Broadcast History (always visible, independent of billing) */}
+        {broadcasts.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <button
+              onClick={() => setShowBroadcastHistory(!showBroadcastHistory)}
+              className="text-lg font-semibold text-gray-900 flex items-center gap-2 w-full text-left"
+            >
+              Broadcast History
+              <svg
+                className={`w-4 h-4 transition-transform ${showBroadcastHistory ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {showBroadcastHistory && (
+              <div className="mt-4 space-y-2">
+                {broadcasts.map((broadcast) => (
+                  <div
+                    key={broadcast.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
+                  >
+                    <div>
+                      <span className="font-medium">{broadcast.roomName}</span>
+                      <span className="text-gray-500 ml-2">
+                        {formatDate(broadcast.startedAt)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-gray-600">
+                      <span>{formatDuration(broadcast.durationMinutes)}</span>
+                      <span>{broadcast.peakListeners} listeners</span>
+                      {broadcast.audioUrl && (
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/audio`}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Audio
+                        </a>
+                      )}
+                      {broadcast.transcriptCount > 0 && (
+                        <a
+                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/transcript?format=txt`}
+                          className="text-blue-600 hover:text-blue-800 font-medium"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Transcript
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

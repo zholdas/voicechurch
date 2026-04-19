@@ -182,6 +182,8 @@ router.get('/broadcasts', requireAuth, (req, res) => {
       peakListeners: log.peakListeners,
       sourceLanguage: log.sourceLanguage,
       targetLanguage: log.targetLanguage,
+      audioUrl: log.audioUrl,
+      transcriptCount: log.transcriptCount,
     };
   });
 
