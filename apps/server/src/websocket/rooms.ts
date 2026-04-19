@@ -270,7 +270,7 @@ export function addBroadcaster(roomId: string, ws: ExtendedWebSocket, userId?: s
   ws.userId = userId;
 
   // Start broadcast tracking (with or without authentication)
-  startBroadcastTracking(roomId, userId || 'anonymous');
+  startBroadcastTracking(roomId, userId || null);
 
   // Notify listeners that broadcast started
   broadcastToListeners(roomId, { type: 'broadcast_started' });
@@ -524,7 +524,7 @@ export function getRoomWithStatus(slugOrId: string): {
 // ============================================
 
 // Start tracking a broadcast (called when broadcaster joins)
-export function startBroadcastTracking(roomId: string, userId: string): void {
+export function startBroadcastTracking(roomId: string, userId: string | null): void {
   const room = rooms.get(roomId);
   if (!room) return;
 
@@ -542,8 +542,9 @@ export function startBroadcastTracking(roomId: string, userId: string): void {
   // Start recording
   recorder.startRecording(roomId, log.id);
 
-  // Start usage timer (increment every minute)
+  // Start usage timer (increment every minute) — only for authenticated users
   const timer = setInterval(() => {
+    if (!userId) return;
     const usage = db.incrementUsage(userId, 1);
     if (usage) {
       const subscription = db.getActiveSubscription(userId);

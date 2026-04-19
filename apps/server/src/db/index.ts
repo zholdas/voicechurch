@@ -710,7 +710,7 @@ function mapSubscriptionRow(row: any): DbSubscription {
 export interface DbBroadcastLog {
   id: string;
   roomId: string;
-  userId: string;
+  userId: string | null;
   startedAt: number;
   endedAt: number | null;
   durationMinutes: number | null;
@@ -723,7 +723,7 @@ export interface DbBroadcastLog {
 
 export function createBroadcastLog(data: {
   roomId: string;
-  userId: string;
+  userId: string | null;
   sourceLanguage?: string;
   targetLanguage?: string;
 }): DbBroadcastLog {
