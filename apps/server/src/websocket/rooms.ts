@@ -549,7 +549,7 @@ export function startBroadcastTracking(roomId: string, userId: string | null): v
 
   // Start recording (with or without broadcast log)
   const recordingId = logId || `rec-${roomId}-${Date.now()}`;
-  recorder.startRecording(roomId, recordingId);
+  recorder.startRecording(roomId, recordingId, !!logId);
 
   // Start usage timer (increment every minute) — only for authenticated users
   const timer = setInterval(() => {

@@ -1,6 +1,8 @@
 import { uploadToR2, isR2Configured } from './r2.js';
 import * as db from '../db/index.js';
 import type { LanguageCode } from '../websocket/types.js';
+// @ts-ignore — lamejs has no type declarations
+import lamejs from 'lamejs';
 
 interface TranscriptEntry {
   timestamp: number;
@@ -10,6 +12,7 @@ interface TranscriptEntry {
 
 interface ActiveRecording {
   broadcastLogId: string;
+  hasDbLog: boolean; // true if broadcastLogId exists in broadcast_logs table
   audioChunks: Buffer[];
   totalAudioBytes: number;
   transcripts: TranscriptEntry[];
@@ -20,7 +23,7 @@ const MAX_AUDIO_BYTES = 120 * 1024 * 1024; // 120MB limit (~60 min of 16kHz PCM)
 
 const recordings = new Map<string, ActiveRecording>();
 
-export function startRecording(roomId: string, broadcastLogId: string): void {
+export function startRecording(roomId: string, broadcastLogId: string, hasDbLog: boolean = false): void {
   if (recordings.has(roomId)) {
     console.warn(`Recording already active for room ${roomId}`);
     return;
@@ -28,6 +31,7 @@ export function startRecording(roomId: string, broadcastLogId: string): void {
 
   recordings.set(roomId, {
     broadcastLogId,
+    hasDbLog,
     audioChunks: [],
     totalAudioBytes: 0,
     transcripts: [],
@@ -78,8 +82,8 @@ export async function finalize(roomId: string): Promise<void> {
 
   console.log(`Finalizing recording for room ${roomId}: ${audioChunks.length} audio chunks, ${transcripts.length} transcripts`);
 
-  // Save transcripts to DB
-  if (transcripts.length > 0) {
+  // Save transcripts to DB (only if we have a real broadcast log)
+  if (transcripts.length > 0 && recording.hasDbLog) {
     try {
       db.saveTranscripts(broadcastLogId, transcripts.map(t => ({
         timestamp: t.timestamp,
@@ -91,6 +95,8 @@ export async function finalize(roomId: string): Promise<void> {
     } catch (error) {
       console.error(`Failed to save transcripts for broadcast ${broadcastLogId}:`, error);
     }
+  } else if (transcripts.length > 0) {
+    console.log(`Skipped saving ${transcripts.length} transcripts (no DB log for ${broadcastLogId})`);
   }
 
   // Upload audio to R2
@@ -102,7 +108,9 @@ export async function finalize(roomId: string): Promise<void> {
       const key = `recordings/${broadcastLogId}.mp3`;
       await uploadToR2(key, mp3Buffer, 'audio/mpeg');
 
-      db.updateBroadcastLogRecording(broadcastLogId, key, transcripts.length);
+      if (recording.hasDbLog) {
+        db.updateBroadcastLogRecording(broadcastLogId, key, transcripts.length);
+      }
       console.log(`Uploaded audio for broadcast ${broadcastLogId} (${(mp3Buffer.length / 1024 / 1024).toFixed(1)}MB MP3, from ${(pcmBuffer.length / 1024 / 1024).toFixed(1)}MB PCM)`);
     } catch (error) {
       console.error(`Failed to upload audio for broadcast ${broadcastLogId}:`, error);
@@ -116,8 +124,6 @@ export function isRecording(roomId: string): boolean {
 
 // Convert raw PCM (16-bit signed LE) to MP3 using lamejs
 function pcmToMp3(pcmData: Buffer, sampleRate: number, channels: number): Buffer {
-  // @ts-ignore — lamejs has no type declarations
-  const lamejs = require('lamejs');
   const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 64); // 64kbps
 
   // Convert Buffer to Int16Array
