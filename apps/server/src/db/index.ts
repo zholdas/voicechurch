@@ -977,9 +977,9 @@ export function markTrialUsed(userId: string): void {
 // API Token functions (for mobile apps)
 // ============================================
 
-export function createApiToken(userId: string): string {
+export function createApiToken(userId: string, expiresInSeconds: number = 30 * 24 * 60 * 60): string {
   const token = crypto.randomUUID() + crypto.randomUUID(); // 72 char token
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+  const expiresAt = new Date(Date.now() + expiresInSeconds * 1000).toISOString();
   const stmt = db.prepare(`
     INSERT INTO api_tokens (token, user_id, expires_at)
     VALUES (?, ?, ?)

@@ -95,6 +95,15 @@ router.post('/apple/mobile', async (req, res) => {
   }
 });
 
+// Get short-lived token for WebSocket authentication
+router.get('/ws-token', (req, res) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  const token = createApiToken(req.user.id, 5 * 60); // 5 minutes
+  res.json({ token });
+});
+
 // Get current user
 router.get('/me', (req, res) => {
   if (req.isAuthenticated() && req.user) {

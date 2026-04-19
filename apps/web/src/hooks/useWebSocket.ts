@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { ServerMessage, ClientMessage, ConnectionStatus } from '../lib/types';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface UseWebSocketOptions {
   onMessage?: (message: ServerMessage) => void;
@@ -23,7 +24,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     optionsRef.current = options;
   }, [options]);
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     // Prevent multiple connections
     if (wsRef.current?.readyState === WebSocket.OPEN ||
         wsRef.current?.readyState === WebSocket.CONNECTING) {
@@ -33,7 +34,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     shouldReconnectRef.current = true;
     setStatus('connecting');
 
-    const ws = new WebSocket(WS_URL);
+    // Try to get a short-lived token for authenticated WebSocket
+    let wsUrl = WS_URL;
+    try {
+      const response = await fetch(`${API_URL}/auth/ws-token`, { credentials: 'include' });
+      if (response.ok) {
+        const { token } = await response.json();
+        wsUrl = `${WS_URL}?token=${token}`;
+      }
+    } catch {
+      // Not authenticated or network error — connect without token
+    }
+
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
