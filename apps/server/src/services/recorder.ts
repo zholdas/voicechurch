@@ -96,17 +96,14 @@ export async function finalize(roomId: string): Promise<void> {
   // Upload audio to R2
   if (audioChunks.length > 0 && isR2Configured()) {
     try {
-      // Concatenate PCM chunks into single buffer
       const pcmBuffer = Buffer.concat(audioChunks);
+      const mp3Buffer = pcmToMp3(pcmBuffer, 16000, 1);
 
-      // Convert PCM to WAV (simpler than MP3, no external dependency issues)
-      const wavBuffer = pcmToWav(pcmBuffer, 16000, 1, 16);
-
-      const key = `recordings/${broadcastLogId}.wav`;
-      await uploadToR2(key, wavBuffer, 'audio/wav');
+      const key = `recordings/${broadcastLogId}.mp3`;
+      await uploadToR2(key, mp3Buffer, 'audio/mpeg');
 
       db.updateBroadcastLogRecording(broadcastLogId, key, transcripts.length);
-      console.log(`Uploaded audio for broadcast ${broadcastLogId} (${(wavBuffer.length / 1024 / 1024).toFixed(1)}MB)`);
+      console.log(`Uploaded audio for broadcast ${broadcastLogId} (${(mp3Buffer.length / 1024 / 1024).toFixed(1)}MB MP3, from ${(pcmBuffer.length / 1024 / 1024).toFixed(1)}MB PCM)`);
     } catch (error) {
       console.error(`Failed to upload audio for broadcast ${broadcastLogId}:`, error);
     }
@@ -117,34 +114,31 @@ export function isRecording(roomId: string): boolean {
   return recordings.has(roomId);
 }
 
-// Convert raw PCM to WAV format
-function pcmToWav(pcmData: Buffer, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
-  const byteRate = sampleRate * channels * (bitsPerSample / 8);
-  const blockAlign = channels * (bitsPerSample / 8);
-  const dataSize = pcmData.length;
-  const headerSize = 44;
+// Convert raw PCM (16-bit signed LE) to MP3 using lamejs
+function pcmToMp3(pcmData: Buffer, sampleRate: number, channels: number): Buffer {
+  // @ts-ignore — lamejs has no type declarations
+  const lamejs = require('lamejs');
+  const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 64); // 64kbps
 
-  const wav = Buffer.alloc(headerSize + dataSize);
+  // Convert Buffer to Int16Array
+  const samples = new Int16Array(pcmData.buffer, pcmData.byteOffset, pcmData.length / 2);
 
-  // RIFF header
-  wav.write('RIFF', 0);
-  wav.writeUInt32LE(36 + dataSize, 4);
-  wav.write('WAVE', 8);
+  const mp3Parts: Buffer[] = [];
+  const blockSize = 1152; // lamejs recommended block size
 
-  // fmt sub-chunk
-  wav.write('fmt ', 12);
-  wav.writeUInt32LE(16, 16);          // sub-chunk size
-  wav.writeUInt16LE(1, 20);           // PCM format
-  wav.writeUInt16LE(channels, 22);
-  wav.writeUInt32LE(sampleRate, 24);
-  wav.writeUInt32LE(byteRate, 28);
-  wav.writeUInt16LE(blockAlign, 32);
-  wav.writeUInt16LE(bitsPerSample, 34);
+  for (let i = 0; i < samples.length; i += blockSize) {
+    const chunk = samples.subarray(i, i + blockSize);
+    const mp3buf = mp3encoder.encodeBuffer(chunk);
+    if (mp3buf.length > 0) {
+      mp3Parts.push(Buffer.from(mp3buf));
+    }
+  }
 
-  // data sub-chunk
-  wav.write('data', 36);
-  wav.writeUInt32LE(dataSize, 40);
-  pcmData.copy(wav, headerSize);
+  // Flush remaining
+  const end = mp3encoder.flush();
+  if (end.length > 0) {
+    mp3Parts.push(Buffer.from(end));
+  }
 
-  return wav;
+  return Buffer.concat(mp3Parts);
 }
