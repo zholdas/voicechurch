@@ -269,7 +269,7 @@ export function addBroadcaster(roomId: string, ws: ExtendedWebSocket, userId?: s
   ws.role = 'broadcaster';
   ws.userId = userId;
 
-  // Start broadcast tracking (with or without authentication)
+  // Start broadcast tracking
   startBroadcastTracking(roomId, userId || null);
 
   // Notify listeners that broadcast started
@@ -528,19 +528,28 @@ export function startBroadcastTracking(roomId: string, userId: string | null): v
   const room = rooms.get(roomId);
   if (!room) return;
 
-  // Create broadcast log
-  const log = db.createBroadcastLog({
-    roomId,
-    userId,
-    sourceLanguage: room.sourceLanguage,
-    targetLanguage: room.targetLanguage,
-  });
+  // Create broadcast log (requires userId for DB — skip if not authenticated)
+  let logId: string | null = null;
+  if (userId) {
+    try {
+      const log = db.createBroadcastLog({
+        roomId,
+        userId,
+        sourceLanguage: room.sourceLanguage,
+        targetLanguage: room.targetLanguage,
+      });
+      logId = log.id;
+      activeBroadcastLogs.set(roomId, log.id);
+    } catch (error) {
+      console.error(`Failed to create broadcast log for room ${roomId}:`, error);
+    }
+  }
 
-  activeBroadcastLogs.set(roomId, log.id);
   peakListeners.set(roomId, room.listeners.size);
 
-  // Start recording
-  recorder.startRecording(roomId, log.id);
+  // Start recording (with or without broadcast log)
+  const recordingId = logId || `rec-${roomId}-${Date.now()}`;
+  recorder.startRecording(roomId, recordingId);
 
   // Start usage timer (increment every minute) — only for authenticated users
   const timer = setInterval(() => {
