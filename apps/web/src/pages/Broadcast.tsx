@@ -32,6 +32,9 @@ export default function Broadcast() {
   const [roomReady, setRoomReady] = useState(false);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
 
+  // Language mode
+  const [sourceLanguageMode, setSourceLanguageMode] = useState<'auto' | 'manual'>('manual');
+
   // Billing state
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [minutesRemaining, setMinutesRemaining] = useState<number | null>(null);
@@ -74,6 +77,9 @@ export default function Broadcast() {
         break;
       case 'source_language_changed':
         setSourceLanguage(message.sourceLanguage);
+        break;
+      case 'source_language_mode':
+        setSourceLanguageMode(message.mode);
         break;
     }
   }, []);
@@ -228,21 +234,30 @@ export default function Broadcast() {
           {roomName && (
             <h2 className="text-2xl font-bold text-gray-900">{roomName}</h2>
           )}
-          <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium mt-2 bg-gradient-to-r from-blue-100 to-green-100 text-gray-700">
-            <select
-              data-language-select
-              value={sourceLanguage}
-              onChange={(e) => handleSourceLanguageChange(e.target.value as LanguageCode)}
-              className="bg-transparent font-medium border-none focus:outline-none cursor-pointer"
-            >
-              {SUPPORTED_LANGUAGES.map((lang) => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.name}
-                </option>
-              ))}
-            </select>
-            <span>→ {getLanguageName(targetLanguage)}</span>
-          </div>
+          {sourceLanguageMode === 'auto' ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium mt-2 bg-purple-100 text-purple-700">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+              </svg>
+              Auto-detect language
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium mt-2 bg-gradient-to-r from-blue-100 to-green-100 text-gray-700">
+              <select
+                data-language-select
+                value={sourceLanguage}
+                onChange={(e) => handleSourceLanguageChange(e.target.value as LanguageCode)}
+                className="bg-transparent font-medium border-none focus:outline-none cursor-pointer"
+              >
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+              <span>→ {getLanguageName(targetLanguage)}</span>
+            </div>
+          )}
         </div>
 
         {/* Share link */}
@@ -334,17 +349,23 @@ export default function Broadcast() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                 </svg>
                 <span>
-                  Speak in <strong>{getLanguageName(sourceLanguage)}</strong>.{' '}
-                  Speaking another language?{' '}
-                  <button
-                    onClick={() => {
-                      const select = document.querySelector<HTMLSelectElement>('[data-language-select]');
-                      select?.focus();
-                    }}
-                    className="underline font-medium hover:text-blue-900"
-                  >
-                    Change language
-                  </button>
+                  {sourceLanguageMode === 'auto' ? (
+                    <>Language is detected automatically. Speak in any supported language.</>
+                  ) : (
+                    <>
+                      Speak in <strong>{getLanguageName(sourceLanguage)}</strong>.{' '}
+                      Speaking another language?{' '}
+                      <button
+                        onClick={() => {
+                          const select = document.querySelector<HTMLSelectElement>('[data-language-select]');
+                          select?.focus();
+                        }}
+                        className="underline font-medium hover:text-blue-900"
+                      >
+                        Change language
+                      </button>
+                    </>
+                  )}
                 </span>
               </div>
               {/* Real-time minutes indicator during broadcast */}

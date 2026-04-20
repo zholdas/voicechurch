@@ -57,13 +57,18 @@ export class DeepLVoicePipeline implements TranslationPipeline {
       // Step 1: Request session token
       const langConfig = getLanguageConfig(sourceLanguage);
       const requestBody = {
-        source_language: langConfig.deeplSourceCode.toUpperCase(),
         target_languages: limitedTargets.map(lang => {
           const cfg = getLanguageConfig(lang);
           return cfg.deeplTargetCode.toUpperCase();
         }),
         source_media_content_type: 'audio/pcm;encoding=s16le;rate=16000',
-      };
+      } as Record<string, unknown>;
+
+      // In manual mode, fix the source language; in auto mode, let DeepL auto-detect
+      if (config.sourceLanguageMode === 'manual') {
+        requestBody.source_language = langConfig.deeplSourceCode.toUpperCase();
+        requestBody.source_language_mode = 'fixed';
+      }
       console.log(`[deepl-voice] Session request body:`, JSON.stringify(requestBody));
 
       const response = await fetch(`${DEEPL_VOICE_API_BASE}/v3/voice/realtime`, {

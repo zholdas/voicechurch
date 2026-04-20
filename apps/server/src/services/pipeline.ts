@@ -5,6 +5,7 @@ export interface TranscriptResult {
   translations: Map<LanguageCode, { translated: string; audio?: string }>;
   isFinal: boolean;
   timestamp: number;
+  detectedLanguage?: LanguageCode;
 }
 
 export type TranscriptCallback = (

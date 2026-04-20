@@ -20,6 +20,7 @@ import {
   setPipelineConnection,
 } from './rooms.js';
 import { getPipeline } from '../services/pipeline-factory.js';
+import { config } from '../config.js';
 import type { TranscriptResult } from '../services/pipeline.js';
 import * as recorder from '../services/recorder.js';
 import { isValidLanguageCode } from '../languages.js';
@@ -208,6 +209,11 @@ function handleJoinRoom(
     targetLanguage: role === 'listener' ? (ws.targetLanguage || room.targetLanguage) : room.targetLanguage,
     direction,
   });
+
+  // Send source language mode to broadcaster
+  if (role === 'broadcaster') {
+    send(ws, { type: 'source_language_mode', mode: config.sourceLanguageMode });
+  }
 
   // Notify if broadcast is already active
   if (role === 'listener' && room.isActive) {

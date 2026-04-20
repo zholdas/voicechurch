@@ -11,6 +11,9 @@ export const config = {
   // Translation pipeline: 'legacy' (Deepgram+DeepL+GoogleTTS) or 'deepl-voice' (DeepL Voice API)
   translationPipeline: (process.env.TRANSLATION_PIPELINE || 'legacy') as 'legacy' | 'deepl-voice',
 
+  // Source language mode: 'auto' (Deepgram multi/DeepL auto-detect) or 'manual' (fixed language)
+  sourceLanguageMode: (process.env.SOURCE_LANGUAGE_MODE || 'manual') as 'auto' | 'manual',
+
   session: {
     secret: process.env.SESSION_SECRET || 'dev-secret-change-in-production',
     cookieDomain: process.env.COOKIE_DOMAIN || undefined,

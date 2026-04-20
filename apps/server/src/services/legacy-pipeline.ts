@@ -2,9 +2,17 @@ import { createClient, LiveTranscriptionEvents } from '@deepgram/sdk';
 import { config } from '../config.js';
 import { translate, cancelPendingTranslation } from './translation.js';
 import { synthesizeSpeech, isGoogleTtsConfigured } from './google-tts.js';
-import { getLanguageConfig } from '../languages.js';
+import { getLanguageConfig, isValidLanguageCode } from '../languages.js';
 import type { LanguageCode } from '../websocket/types.js';
 import type { TranslationPipeline, TranscriptCallback, TargetLanguagesProvider } from './pipeline.js';
+
+// Map Deepgram detected language code to our LanguageCode
+function mapDetectedLanguage(deepgramLang: string): LanguageCode | null {
+  if (isValidLanguageCode(deepgramLang)) return deepgramLang;
+  const base = deepgramLang.split('-')[0];
+  if (isValidLanguageCode(base)) return base;
+  return null;
+}
 
 interface ConnectionState {
   connection: unknown;
@@ -25,7 +33,7 @@ export class LegacyPipeline implements TranslationPipeline {
 
     const deepgram = createClient(config.deepgram.apiKey);
     const langConfig = getLanguageConfig(sourceLanguage);
-    const language = langConfig.deepgramCode;
+    const language = config.sourceLanguageMode === 'auto' ? 'multi' : langConfig.deepgramCode;
 
     const connection = deepgram.listen.live({
       model: 'nova-2',
@@ -53,6 +61,21 @@ export class LegacyPipeline implements TranslationPipeline {
       const state = connections.get(roomId);
       if (!state) return;
 
+      // Determine effective source language (auto-detect or fixed)
+      let effectiveSourceLang = state.sourceLanguage;
+      let detectedLanguage: LanguageCode | undefined;
+
+      if (config.sourceLanguageMode === 'auto') {
+        const detected = data.channel?.alternatives?.[0]?.languages?.[0];
+        if (detected) {
+          const mapped = mapDetectedLanguage(detected);
+          if (mapped) {
+            effectiveSourceLang = mapped;
+            detectedLanguage = mapped;
+          }
+        }
+      }
+
       const currentTargets = state.getTargetLanguages(roomId);
       if (currentTargets.length === 0) return;
 
@@ -61,7 +84,7 @@ export class LegacyPipeline implements TranslationPipeline {
 
         const results = await Promise.all(
           currentTargets.map(async (targetLang) => {
-            const translated = await translate(transcript, state.sourceLanguage, targetLang);
+            const translated = await translate(transcript, effectiveSourceLang, targetLang);
 
             let audioBase64: string | undefined;
             if (isGoogleTtsConfigured()) {
@@ -89,6 +112,7 @@ export class LegacyPipeline implements TranslationPipeline {
           translations,
           isFinal: true,
           timestamp,
+          detectedLanguage,
         });
       } else {
         // Interim: no translation, just source text
@@ -98,6 +122,7 @@ export class LegacyPipeline implements TranslationPipeline {
           translations,
           isFinal: false,
           timestamp,
+          detectedLanguage,
         });
       }
     });

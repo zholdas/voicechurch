@@ -100,7 +100,8 @@ export type ServerMessage =
   // Billing-related messages
   | { type: 'usage_warning'; minutesRemaining: number }
   | { type: 'broadcast_stopped'; reason: 'MINUTES_EXCEEDED' | 'LISTENERS_EXCEEDED' }
-  | { type: 'source_language_changed'; sourceLanguage: LanguageCode };
+  | { type: 'source_language_changed'; sourceLanguage: LanguageCode }
+  | { type: 'source_language_mode'; mode: 'auto' | 'manual' };
 
 // Client -> Server messages
 export type ClientMessage =
