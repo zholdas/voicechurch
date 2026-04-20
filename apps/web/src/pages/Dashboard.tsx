@@ -16,6 +16,9 @@ export default function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Analysis expansion state
+  const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
+
   // Billing state
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [broadcasts, setBroadcasts] = useState<BroadcastLog[]>([]);
@@ -391,40 +394,79 @@ export default function Dashboard() {
             {showBroadcastHistory && (
               <div className="mt-4 space-y-2">
                 {broadcasts.map((broadcast) => (
-                  <div
-                    key={broadcast.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm"
-                  >
-                    <div>
-                      <span className="font-medium">{broadcast.roomName}</span>
-                      <span className="text-gray-500 ml-2">
-                        {formatDate(broadcast.startedAt)}
-                      </span>
+                  <div key={broadcast.id} className="bg-gray-50 rounded-lg text-sm">
+                    <div className="flex items-center justify-between p-3">
+                      <div>
+                        <span className="font-medium">{broadcast.roomName}</span>
+                        <span className="text-gray-500 ml-2">
+                          {formatDate(broadcast.startedAt)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-gray-600">
+                        <span>{formatDuration(broadcast.durationMinutes)}</span>
+                        <span>{broadcast.peakListeners} listeners</span>
+                        {broadcast.audioUrl && (
+                          <a
+                            href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/audio`}
+                            className="text-blue-600 hover:text-blue-800 font-medium"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Audio
+                          </a>
+                        )}
+                        {broadcast.transcriptCount > 0 && (
+                          <a
+                            href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/transcript?format=txt`}
+                            className="text-blue-600 hover:text-blue-800 font-medium"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Transcript
+                          </a>
+                        )}
+                        {broadcast.aiAnalysis && (
+                          <button
+                            onClick={() => setExpandedAnalysis(
+                              expandedAnalysis === broadcast.id ? null : broadcast.id
+                            )}
+                            className="text-purple-600 hover:text-purple-800 font-medium"
+                          >
+                            Summary
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 text-gray-600">
-                      <span>{formatDuration(broadcast.durationMinutes)}</span>
-                      <span>{broadcast.peakListeners} listeners</span>
-                      {broadcast.audioUrl && (
-                        <a
-                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/audio`}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Audio
-                        </a>
-                      )}
-                      {broadcast.transcriptCount > 0 && (
-                        <a
-                          href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/broadcasts/${broadcast.id}/transcript?format=txt`}
-                          className="text-blue-600 hover:text-blue-800 font-medium"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Transcript
-                        </a>
-                      )}
-                    </div>
+
+                    {/* AI Analysis expandable block */}
+                    {expandedAnalysis === broadcast.id && broadcast.aiAnalysis && (
+                      <div className="px-3 pb-3 border-t border-gray-200 mt-1 pt-3 space-y-3">
+                        <div>
+                          <h4 className="font-medium text-gray-700 mb-1">Summary</h4>
+                          <p className="text-gray-600">{broadcast.aiAnalysis.summary}</p>
+                        </div>
+                        {broadcast.aiAnalysis.actionItems.length > 0 && (
+                          <div>
+                            <h4 className="font-medium text-gray-700 mb-1">Action Items</h4>
+                            <ul className="list-disc list-inside text-gray-600 space-y-1">
+                              {broadcast.aiAnalysis.actionItems.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {broadcast.aiAnalysis.keyDecisions.length > 0 && (
+                          <div>
+                            <h4 className="font-medium text-gray-700 mb-1">Key Decisions</h4>
+                            <ul className="list-disc list-inside text-gray-600 space-y-1">
+                              {broadcast.aiAnalysis.keyDecisions.map((item, i) => (
+                                <li key={i}>{item}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

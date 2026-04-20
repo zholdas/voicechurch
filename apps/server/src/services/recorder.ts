@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { promisify } from 'util';
 import { uploadToR2, isR2Configured } from './r2.js';
+import { analyzeAndSave } from './ai-analysis.js';
 import * as db from '../db/index.js';
 import type { LanguageCode } from '../websocket/types.js';
 
@@ -102,6 +103,13 @@ export async function finalize(roomId: string): Promise<void> {
     }
   } else if (transcripts.length > 0) {
     console.log(`Skipped saving ${transcripts.length} transcripts (no DB log for ${broadcastLogId})`);
+  }
+
+  // Run AI analysis (async, non-blocking)
+  if (transcripts.length > 0 && recording.hasDbLog) {
+    analyzeAndSave(broadcastLogId, transcripts).catch(err => {
+      console.error(`AI analysis failed for broadcast ${broadcastLogId}:`, err);
+    });
   }
 
   // Upload audio to R2

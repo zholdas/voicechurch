@@ -197,6 +197,7 @@ router.get('/broadcasts', requireAuth, (req, res) => {
       targetLanguage: log.targetLanguage,
       audioUrl: log.audioUrl,
       transcriptCount: log.transcriptCount,
+      aiAnalysis: log.aiAnalysis ? JSON.parse(log.aiAnalysis) : null,
     };
   });
 

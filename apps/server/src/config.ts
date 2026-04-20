@@ -66,6 +66,10 @@ export const config = {
     },
   },
 
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+  },
+
   r2: {
     endpoint: process.env.R2_ENDPOINT || '',
     accessKeyId: process.env.R2_ACCESS_KEY_ID || '',

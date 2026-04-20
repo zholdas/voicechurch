@@ -126,6 +126,11 @@ export interface BroadcastLog {
   targetLanguage: string;
   audioUrl: string | null;
   transcriptCount: number;
+  aiAnalysis: {
+    summary: string;
+    actionItems: string[];
+    keyDecisions: string[];
+  } | null;
 }
 
 export interface BroadcastsResponse {

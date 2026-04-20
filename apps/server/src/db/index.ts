@@ -118,6 +118,11 @@ try {
 } catch {
   // Column already exists
 }
+try {
+  db.exec(`ALTER TABLE broadcast_logs ADD COLUMN ai_analysis TEXT`);
+} catch {
+  // Column already exists
+}
 
 // Create billing tables
 db.exec(`
@@ -719,6 +724,7 @@ export interface DbBroadcastLog {
   targetLanguage: string | null;
   audioUrl: string | null;
   transcriptCount: number;
+  aiAnalysis: string | null;
 }
 
 export function createBroadcastLog(data: {
@@ -806,6 +812,7 @@ function mapBroadcastLogRow(row: any): DbBroadcastLog {
     targetLanguage: row.target_language,
     audioUrl: row.audio_url || null,
     transcriptCount: row.transcript_count || 0,
+    aiAnalysis: row.ai_analysis || null,
   };
 }
 
@@ -850,6 +857,11 @@ export function updateBroadcastLogRecording(logId: string, audioUrl: string | nu
     UPDATE broadcast_logs SET audio_url = COALESCE(?, audio_url), transcript_count = ? WHERE id = ?
   `);
   stmt.run(audioUrl, transcriptCount, logId);
+}
+
+export function updateBroadcastLogAnalysis(logId: string, analysis: string): void {
+  const stmt = db.prepare(`UPDATE broadcast_logs SET ai_analysis = ? WHERE id = ?`);
+  stmt.run(analysis, logId);
 }
 
 // ============================================
