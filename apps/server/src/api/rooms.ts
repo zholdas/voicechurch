@@ -467,4 +467,96 @@ router.get('/broadcasts/:logId/transcript', requireAuth, (req: Request, res: Res
   }
 });
 
+// ============================================
+// Sessions & Transcripts API
+// ============================================
+
+// GET /api/rooms/:slug/sessions — list sessions for a room
+router.get('/:slug/sessions', (req: Request, res: Response) => {
+  const roomData = getRoomWithStatus(req.params.slug);
+  if (!roomData) {
+    return res.status(404).json({ error: 'Room not found' });
+  }
+  const sessions = db.getSessionsByRoom(roomData.id);
+  res.json(sessions.map(s => ({
+    ...s,
+    transcripts: db.getTranscriptsBySession(s.id).map(t => ({
+      id: t.id,
+      type: t.type,
+      language: t.language,
+      slug: t.slug,
+      access: t.access,
+    })),
+  })));
+});
+
+// GET /api/sessions/:sessionId — session details with transcripts
+router.get('/sessions/:sessionId', (req: Request, res: Response) => {
+  const session = db.getSessionById(req.params.sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+  const transcripts = db.getTranscriptsBySession(session.id);
+  res.json({
+    ...session,
+    transcripts: transcripts.map(t => ({
+      id: t.id,
+      type: t.type,
+      language: t.language,
+      slug: t.slug,
+      access: t.access,
+      qrImageUrl: t.qrImageUrl,
+    })),
+  });
+});
+
+// GET /api/sessions/:sessionId/audio — download audio
+router.get('/sessions/:sessionId/audio', requireAuth, async (req: Request, res: Response) => {
+  const session = db.getSessionById(req.params.sessionId);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  if (!session.audioUrl) return res.status(404).json({ error: 'No audio recording' });
+  if (!isR2Configured()) return res.status(500).json({ error: 'Storage not configured' });
+
+  try {
+    const url = await getSignedDownloadUrl(session.audioUrl);
+    res.redirect(url);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
+// GET /api/transcripts/:slug — public transcript access
+router.get('/../../t/:slug', (req: Request, res: Response) => {
+  // This will be handled by a separate route, see below
+});
+
+// Transcript by slug (public or authenticated)
+router.get('/transcripts/by-slug/:slug', (req: Request, res: Response) => {
+  const transcript = db.getTranscriptBySlug(req.params.slug);
+  if (!transcript) {
+    return res.status(404).json({ error: 'Transcript not found' });
+  }
+
+  // Check access
+  if (transcript.access === 'owner') {
+    const user = req.user as any;
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const session = db.getSessionById(transcript.sessionId);
+    if (session?.userId !== user.id) return res.status(403).json({ error: 'Access denied' });
+  }
+  // 'public' and 'invited' — allow access
+
+  res.json({
+    id: transcript.id,
+    type: transcript.type,
+    language: transcript.language,
+    content: JSON.parse(transcript.content),
+    slug: transcript.slug,
+    access: transcript.access,
+    sessionId: transcript.sessionId,
+    qrImageUrl: transcript.qrImageUrl,
+    createdAt: transcript.createdAt,
+  });
+});
+
 export { router as roomsRouter };

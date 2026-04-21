@@ -124,6 +124,52 @@ try {
   // Column already exists
 }
 
+// Migration: transcript settings on rooms
+try { db.exec(`ALTER TABLE rooms ADD COLUMN transcript_enabled INTEGER DEFAULT 1`); } catch { /* exists */ }
+try { db.exec(`ALTER TABLE rooms ADD COLUMN transcript_types TEXT DEFAULT '["verbatim","summary"]'`); } catch { /* exists */ }
+try { db.exec(`ALTER TABLE rooms ADD COLUMN transcript_access TEXT DEFAULT 'owner'`); } catch { /* exists */ }
+
+// Sessions table (replaces broadcast_logs for new workflow)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    room_id TEXT NOT NULL,
+    user_id TEXT,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    duration_minutes INTEGER,
+    peak_listeners INTEGER DEFAULT 0,
+    source_language TEXT,
+    audio_url TEXT,
+    status TEXT DEFAULT 'live',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (room_id) REFERENCES rooms(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_sessions_room ON sessions(room_id);
+  CREATE INDEX IF NOT EXISTS idx_sessions_slug ON sessions(slug);
+`);
+
+// Transcripts table (first-class entities with sharing)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS transcripts (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    language TEXT NOT NULL,
+    content TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    access TEXT DEFAULT 'owner',
+    qr_id TEXT,
+    qr_image_url TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_transcripts_session ON transcripts(session_id);
+  CREATE INDEX IF NOT EXISTS idx_transcripts_slug ON transcripts(slug);
+`);
+
 // Create billing tables
 db.exec(`
   CREATE TABLE IF NOT EXISTS plans (
@@ -1020,4 +1066,184 @@ export function deleteApiToken(token: string): boolean {
 export function deleteUserApiTokens(userId: string): void {
   const stmt = db.prepare('DELETE FROM api_tokens WHERE user_id = ?');
   stmt.run(userId);
+}
+
+// ============================================
+// Session types and functions
+// ============================================
+
+export interface DbSession {
+  id: string;
+  roomId: string;
+  userId: string | null;
+  name: string;
+  slug: string;
+  startedAt: number;
+  endedAt: number | null;
+  durationMinutes: number | null;
+  peakListeners: number;
+  sourceLanguage: string | null;
+  audioUrl: string | null;
+  status: 'live' | 'processing' | 'complete';
+}
+
+export function createSession(data: {
+  roomId: string;
+  userId: string | null;
+  name: string;
+  slug: string;
+  sourceLanguage?: string;
+}): DbSession {
+  const id = crypto.randomUUID();
+  const startedAt = Math.floor(Date.now() / 1000);
+  const stmt = db.prepare(`
+    INSERT INTO sessions (id, room_id, user_id, name, slug, started_at, source_language, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'live')
+  `);
+  stmt.run(id, data.roomId, data.userId, data.name, data.slug, startedAt, data.sourceLanguage || null);
+  return getSessionById(id)!;
+}
+
+export function getSessionById(id: string): DbSession | null {
+  const stmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
+  const row = stmt.get(id) as any;
+  if (!row) return null;
+  return mapSessionRow(row);
+}
+
+export function getSessionBySlug(slug: string): DbSession | null {
+  const stmt = db.prepare('SELECT * FROM sessions WHERE slug = ?');
+  const row = stmt.get(slug) as any;
+  if (!row) return null;
+  return mapSessionRow(row);
+}
+
+export function getSessionsByRoom(roomId: string, limit = 20, offset = 0): DbSession[] {
+  const stmt = db.prepare(`
+    SELECT * FROM sessions WHERE room_id = ? AND ended_at IS NOT NULL
+    ORDER BY started_at DESC LIMIT ? OFFSET ?
+  `);
+  return (stmt.all(roomId, limit, offset) as any[]).map(mapSessionRow);
+}
+
+export function getSessionsByUser(userId: string, limit = 20, offset = 0): DbSession[] {
+  const stmt = db.prepare(`
+    SELECT * FROM sessions WHERE user_id = ? AND ended_at IS NOT NULL
+    ORDER BY started_at DESC LIMIT ? OFFSET ?
+  `);
+  return (stmt.all(userId, limit, offset) as any[]).map(mapSessionRow);
+}
+
+export function endSession(id: string, peakListeners: number): DbSession | null {
+  const session = getSessionById(id);
+  if (!session) return null;
+  const endedAt = Math.floor(Date.now() / 1000);
+  const durationMinutes = Math.ceil((endedAt - session.startedAt) / 60);
+  const stmt = db.prepare(`
+    UPDATE sessions SET ended_at = ?, duration_minutes = ?, peak_listeners = ?, status = 'processing'
+    WHERE id = ?
+  `);
+  stmt.run(endedAt, durationMinutes, peakListeners, id);
+  return getSessionById(id);
+}
+
+export function updateSessionStatus(id: string, status: 'live' | 'processing' | 'complete'): void {
+  db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run(status, id);
+}
+
+export function updateSessionAudio(id: string, audioUrl: string): void {
+  db.prepare('UPDATE sessions SET audio_url = ? WHERE id = ?').run(audioUrl, id);
+}
+
+export function updateSessionPeakListeners(id: string, peakListeners: number): void {
+  db.prepare('UPDATE sessions SET peak_listeners = ? WHERE id = ? AND (peak_listeners < ? OR peak_listeners IS NULL)').run(peakListeners, id, peakListeners);
+}
+
+function mapSessionRow(row: any): DbSession {
+  return {
+    id: row.id,
+    roomId: row.room_id,
+    userId: row.user_id,
+    name: row.name,
+    slug: row.slug,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    durationMinutes: row.duration_minutes,
+    peakListeners: row.peak_listeners || 0,
+    sourceLanguage: row.source_language,
+    audioUrl: row.audio_url,
+    status: row.status || 'complete',
+  };
+}
+
+// ============================================
+// Transcript types and functions
+// ============================================
+
+export interface DbTranscript {
+  id: string;
+  sessionId: string;
+  type: 'verbatim' | 'summary';
+  language: string;
+  content: string; // JSON
+  slug: string;
+  access: 'owner' | 'invited' | 'public';
+  qrId: string | null;
+  qrImageUrl: string | null;
+  createdAt: string;
+}
+
+export function createTranscript(data: {
+  sessionId: string;
+  type: 'verbatim' | 'summary';
+  language: string;
+  content: string;
+  slug: string;
+  access: string;
+}): DbTranscript {
+  const id = crypto.randomUUID();
+  const stmt = db.prepare(`
+    INSERT INTO transcripts (id, session_id, type, language, content, slug, access)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(id, data.sessionId, data.type, data.language, data.content, data.slug, data.access);
+  return getTranscriptById(id)!;
+}
+
+export function getTranscriptById(id: string): DbTranscript | null {
+  const stmt = db.prepare('SELECT * FROM transcripts WHERE id = ?');
+  const row = stmt.get(id) as any;
+  if (!row) return null;
+  return mapTranscriptRow(row);
+}
+
+export function getTranscriptBySlug(slug: string): DbTranscript | null {
+  const stmt = db.prepare('SELECT * FROM transcripts WHERE slug = ?');
+  const row = stmt.get(slug) as any;
+  if (!row) return null;
+  return mapTranscriptRow(row);
+}
+
+export function getTranscriptsBySession(sessionId: string): DbTranscript[] {
+  const stmt = db.prepare('SELECT * FROM transcripts WHERE session_id = ? ORDER BY type, language');
+  return (stmt.all(sessionId) as any[]).map(mapTranscriptRow);
+}
+
+export function updateTranscriptQR(id: string, qrId: string, qrImageUrl: string): void {
+  db.prepare('UPDATE transcripts SET qr_id = ?, qr_image_url = ? WHERE id = ?').run(qrId, qrImageUrl, id);
+}
+
+function mapTranscriptRow(row: any): DbTranscript {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    type: row.type,
+    language: row.language,
+    content: row.content,
+    slug: row.slug,
+    access: row.access || 'owner',
+    qrId: row.qr_id,
+    qrImageUrl: row.qr_image_url,
+    createdAt: row.created_at,
+  };
 }

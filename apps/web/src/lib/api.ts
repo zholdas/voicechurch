@@ -168,3 +168,52 @@ export const billingApi = {
   // Check if billing is configured
   getStatus: () => fetchApi<{ configured: boolean }>('/api/billing/status'),
 };
+
+// Session & Transcript types
+export interface SessionInfo {
+  id: string;
+  roomId: string;
+  userId: string | null;
+  name: string;
+  slug: string;
+  startedAt: number;
+  endedAt: number | null;
+  durationMinutes: number | null;
+  peakListeners: number;
+  sourceLanguage: string | null;
+  audioUrl: string | null;
+  status: 'live' | 'processing' | 'complete';
+  transcripts: TranscriptInfo[];
+}
+
+export interface TranscriptInfo {
+  id: string;
+  type: 'verbatim' | 'summary';
+  language: string;
+  slug: string;
+  access: string;
+  qrImageUrl?: string | null;
+}
+
+export interface TranscriptContent {
+  id: string;
+  type: 'verbatim' | 'summary';
+  language: string;
+  content: any;
+  slug: string;
+  access: string;
+  sessionId: string;
+  qrImageUrl: string | null;
+  createdAt: string;
+}
+
+export const sessionsApi = {
+  getByRoom: (roomSlug: string) =>
+    fetchApi<SessionInfo[]>(`/api/rooms/${roomSlug}/sessions`),
+
+  getById: (sessionId: string) =>
+    fetchApi<SessionInfo>(`/api/rooms/sessions/${sessionId}`),
+
+  getTranscript: (slug: string) =>
+    fetchApi<TranscriptContent>(`/api/transcripts/${slug}`),
+};

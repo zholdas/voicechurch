@@ -4,7 +4,6 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { promisify } from 'util';
 import { uploadToR2, isR2Configured } from './r2.js';
-import { analyzeAndSave } from './ai-analysis.js';
 import * as db from '../db/index.js';
 import type { LanguageCode } from '../websocket/types.js';
 
@@ -18,33 +17,72 @@ interface TranscriptEntry {
 
 interface ActiveRecording {
   broadcastLogId: string;
-  hasDbLog: boolean; // true if broadcastLogId exists in broadcast_logs table
+  hasDbLog: boolean;
+  sessionId: string | null; // new sessions table
   audioChunks: Buffer[];
   totalAudioBytes: number;
   transcripts: TranscriptEntry[];
   startedAt: number;
+  roomName: string;
+  sourceLanguage: string;
+  transcriptAccess: string;
 }
 
 const MAX_AUDIO_BYTES = 120 * 1024 * 1024; // 120MB limit (~60 min of 16kHz PCM)
 
 const recordings = new Map<string, ActiveRecording>();
 
-export function startRecording(roomId: string, broadcastLogId: string, hasDbLog: boolean = false): void {
+export function startRecording(roomId: string, broadcastLogId: string, hasDbLog: boolean = false, options?: {
+  roomName?: string;
+  sourceLanguage?: string;
+  transcriptAccess?: string;
+  userId?: string | null;
+}): void {
   if (recordings.has(roomId)) {
     console.warn(`Recording already active for room ${roomId}`);
     return;
   }
 
+  const roomName = options?.roomName || 'Broadcast';
+  const sourceLanguage = options?.sourceLanguage || 'en';
+  const transcriptAccess = options?.transcriptAccess || 'owner';
+
+  // Create session
+  let sessionId: string | null = null;
+  try {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const sessionName = `${roomName} — ${dateStr} ${timeStr}`;
+    const sessionSlug = `${roomName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const session = db.createSession({
+      roomId,
+      userId: options?.userId || null,
+      name: sessionName,
+      slug: sessionSlug,
+      sourceLanguage,
+    });
+    sessionId = session.id;
+    console.log(`Session created: ${sessionName} (${sessionSlug})`);
+  } catch (error) {
+    console.error(`Failed to create session for room ${roomId}:`, error);
+  }
+
   recordings.set(roomId, {
     broadcastLogId,
     hasDbLog,
+    sessionId,
     audioChunks: [],
     totalAudioBytes: 0,
     transcripts: [],
     startedAt: Date.now(),
+    roomName,
+    sourceLanguage,
+    transcriptAccess,
   });
 
-  console.log(`Recording started for room ${roomId} (broadcast: ${broadcastLogId})`);
+  console.log(`Recording started for room ${roomId} (broadcast: ${broadcastLogId}, session: ${sessionId})`);
 }
 
 export function writeAudioChunk(roomId: string, data: Buffer): void {
@@ -86,9 +124,11 @@ export async function finalize(roomId: string): Promise<void> {
 
   const { broadcastLogId, audioChunks, transcripts } = recording;
 
-  console.log(`Finalizing recording for room ${roomId}: ${audioChunks.length} audio chunks, ${transcripts.length} transcripts`);
+  const { sessionId } = recording;
 
-  // Save transcripts to DB (only if we have a real broadcast log)
+  console.log(`Finalizing recording for room ${roomId}: ${audioChunks.length} audio chunks, ${transcripts.length} transcripts, session: ${sessionId}`);
+
+  // Save transcripts to old broadcast_logs system (backward compat)
   if (transcripts.length > 0 && recording.hasDbLog) {
     try {
       db.saveTranscripts(broadcastLogId, transcripts.map(t => ({
@@ -97,19 +137,74 @@ export async function finalize(roomId: string): Promise<void> {
         translations: JSON.stringify(t.translations),
       })));
       db.updateBroadcastLogRecording(broadcastLogId, null, transcripts.length);
-      console.log(`Saved ${transcripts.length} transcripts for broadcast ${broadcastLogId}`);
     } catch (error) {
       console.error(`Failed to save transcripts for broadcast ${broadcastLogId}:`, error);
     }
-  } else if (transcripts.length > 0) {
-    console.log(`Skipped saving ${transcripts.length} transcripts (no DB log for ${broadcastLogId})`);
   }
 
-  // Run AI analysis (async, non-blocking)
-  if (transcripts.length > 0 && recording.hasDbLog) {
-    analyzeAndSave(broadcastLogId, transcripts).catch(err => {
-      console.error(`AI analysis failed for broadcast ${broadcastLogId}:`, err);
-    });
+  // Create verbatim transcript entity
+  if (transcripts.length > 0 && sessionId) {
+    try {
+      const session = db.getSessionById(sessionId);
+      const verbatimContent = JSON.stringify({
+        segments: transcripts.map(t => ({
+          timestamp: t.timestamp,
+          source: t.source,
+          sourceLanguage: recording.sourceLanguage,
+          translations: t.translations,
+        })),
+      });
+
+      db.createTranscript({
+        sessionId,
+        type: 'verbatim',
+        language: 'multi',
+        content: verbatimContent,
+        slug: `${session?.slug || sessionId}-verbatim`,
+        access: recording.transcriptAccess,
+      });
+      console.log(`Verbatim transcript created for session ${sessionId}`);
+    } catch (error) {
+      console.error(`Failed to create verbatim transcript:`, error);
+    }
+  }
+
+  // Run AI analysis → create summary transcript (async, non-blocking)
+  if (transcripts.length > 0) {
+    const saveAnalysis = async () => {
+      try {
+        const { analyzeTranscript, isAnalysisConfigured } = await import('./ai-analysis.js');
+        if (!isAnalysisConfigured()) return;
+
+        const result = await analyzeTranscript(transcripts);
+
+        // Save to old broadcast_logs (backward compat)
+        if (recording.hasDbLog) {
+          db.updateBroadcastLogAnalysis(broadcastLogId, JSON.stringify(result));
+        }
+
+        // Create summary transcript entity
+        if (sessionId) {
+          const session = db.getSessionById(sessionId);
+          db.createTranscript({
+            sessionId,
+            type: 'summary',
+            language: recording.sourceLanguage,
+            content: JSON.stringify(result),
+            slug: `${session?.slug || sessionId}-summary-${recording.sourceLanguage}`,
+            access: recording.transcriptAccess,
+          });
+          db.updateSessionStatus(sessionId, 'complete');
+          console.log(`Summary transcript created for session ${sessionId}`);
+        }
+      } catch (error) {
+        console.error(`AI analysis failed:`, error);
+        if (sessionId) db.updateSessionStatus(sessionId, 'complete');
+      }
+    };
+    saveAnalysis();
+  } else if (sessionId) {
+    db.updateSessionStatus(sessionId, 'complete');
   }
 
   // Upload audio to R2
@@ -128,10 +223,18 @@ export async function finalize(roomId: string): Promise<void> {
       if (recording.hasDbLog) {
         db.updateBroadcastLogRecording(broadcastLogId, key, transcripts.length);
       }
-      console.log(`Uploaded audio for broadcast ${broadcastLogId} (${(uploadBuffer.length / 1024 / 1024).toFixed(1)}MB ${ext.toUpperCase()}, from ${(pcmBuffer.length / 1024 / 1024).toFixed(1)}MB PCM)`);
+      if (sessionId) {
+        db.updateSessionAudio(sessionId, key);
+      }
+      console.log(`Uploaded audio (${(uploadBuffer.length / 1024 / 1024).toFixed(1)}MB ${ext.toUpperCase()})`);
     } catch (error) {
-      console.error(`Failed to upload audio for broadcast ${broadcastLogId}:`, error);
+      console.error(`Failed to upload audio:`, error);
     }
+  }
+
+  // End session
+  if (sessionId) {
+    db.endSession(sessionId, 0); // peak listeners updated separately
   }
 }
 

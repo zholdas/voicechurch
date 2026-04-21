@@ -75,6 +75,11 @@ app.use('/webhooks', webhooksRouter);
 app.use('/api/billing', billingRouter);
 
 
+// Public transcript API
+app.get('/api/transcripts/:slug', (req, res) => {
+  res.redirect(307, `/api/rooms/transcripts/by-slug/${req.params.slug}`);
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
