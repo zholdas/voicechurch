@@ -169,34 +169,69 @@ export async function finalize(roomId: string): Promise<void> {
     }
   }
 
-  // Run AI analysis → create summary transcript (async, non-blocking)
+  // Run AI analysis → create summary transcripts per language (async, non-blocking)
   if (transcripts.length > 0) {
     const saveAnalysis = async () => {
       try {
         const { analyzeTranscript, isAnalysisConfigured } = await import('./ai-analysis.js');
-        if (!isAnalysisConfigured()) return;
-
-        const result = await analyzeTranscript(transcripts);
-
-        // Save to old broadcast_logs (backward compat)
-        if (recording.hasDbLog) {
-          db.updateBroadcastLogAnalysis(broadcastLogId, JSON.stringify(result));
+        if (!isAnalysisConfigured()) {
+          if (sessionId) db.updateSessionStatus(sessionId, 'complete');
+          return;
         }
 
-        // Create summary transcript entity
+        const session = sessionId ? db.getSessionById(sessionId) : null;
+        const sessionSlug = session?.slug || sessionId || broadcastLogId;
+
+        // 1. Summary in source language
+        const sourceResult = await analyzeTranscript(transcripts);
+
+        if (recording.hasDbLog) {
+          db.updateBroadcastLogAnalysis(broadcastLogId, JSON.stringify(sourceResult));
+        }
+
         if (sessionId) {
-          const session = db.getSessionById(sessionId);
           db.createTranscript({
             sessionId,
             type: 'summary',
             language: recording.sourceLanguage,
-            content: JSON.stringify(result),
-            slug: `${session?.slug || sessionId}-summary-${recording.sourceLanguage}`,
+            content: JSON.stringify(sourceResult),
+            slug: `${sessionSlug}-summary-${recording.sourceLanguage}`,
             access: recording.transcriptAccess,
           });
-          db.updateSessionStatus(sessionId, 'complete');
-          console.log(`Summary transcript created for session ${sessionId}`);
+          console.log(`Summary (${recording.sourceLanguage}) created for session ${sessionId}`);
         }
+
+        // 2. Summary in each translation language
+        const translationLanguages = new Set<string>();
+        for (const t of transcripts) {
+          for (const lang of Object.keys(t.translations)) {
+            if (lang !== recording.sourceLanguage) {
+              translationLanguages.add(lang);
+            }
+          }
+        }
+
+        for (const targetLang of translationLanguages) {
+          try {
+            const translatedResult = await analyzeTranscript(transcripts, targetLang);
+
+            if (sessionId) {
+              db.createTranscript({
+                sessionId,
+                type: 'summary',
+                language: targetLang,
+                content: JSON.stringify(translatedResult),
+                slug: `${sessionSlug}-summary-${targetLang}`,
+                access: recording.transcriptAccess,
+              });
+              console.log(`Summary (${targetLang}) created for session ${sessionId}`);
+            }
+          } catch (error) {
+            console.error(`Failed to create summary for ${targetLang}:`, error);
+          }
+        }
+
+        if (sessionId) db.updateSessionStatus(sessionId, 'complete');
       } catch (error) {
         console.error(`AI analysis failed:`, error);
         if (sessionId) db.updateSessionStatus(sessionId, 'complete');

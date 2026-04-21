@@ -22,12 +22,19 @@ export function isAnalysisConfigured(): boolean {
 }
 
 export async function analyzeTranscript(
-  transcripts: Array<{ source: string; translations: Record<string, string> }>
+  transcripts: Array<{ source: string; translations: Record<string, string> }>,
+  targetLanguage?: string
 ): Promise<AnalysisResult> {
   const anthropic = getClient();
 
-  // Build transcript text from source
-  const transcriptText = transcripts.map(t => t.source).join('\n');
+  // Build transcript text — use translations if target language specified, otherwise source
+  const transcriptText = targetLanguage
+    ? transcripts.map(t => t.translations[targetLanguage] || t.source).join('\n')
+    : transcripts.map(t => t.source).join('\n');
+
+  const languageInstruction = targetLanguage
+    ? `Respond in ${targetLanguage} language.`
+    : `Respond in the same language as the transcript.`;
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -43,7 +50,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
 {"summary":"A concise summary in 3-5 sentences","actionItems":["Task 1","Task 2"],"keyDecisions":["Decision 1","Decision 2"]}
 
 Important:
-- Respond in the same language as the transcript
+- ${languageInstruction}
 - If no action items or decisions are found, use empty arrays
 - Keep the summary concise but informative`,
     }],
