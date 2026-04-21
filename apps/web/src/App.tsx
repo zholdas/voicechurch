@@ -6,6 +6,7 @@ import Broadcast from './pages/Broadcast';
 import Listen from './pages/Listen';
 import JoinRoom from './pages/JoinRoom';
 import Pricing from './pages/Pricing';
+import Transcript from './pages/Transcript';
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/broadcast" element={<Broadcast />} />
         <Route path="/room/:roomId" element={<Listen />} />
         <Route path="/room/:roomId/broadcast" element={<Broadcast />} />
+        <Route path="/t/:slug" element={<Transcript />} />
       </Routes>
     </BrowserRouter>
   );

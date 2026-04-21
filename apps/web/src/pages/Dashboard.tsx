@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { roomsApi, billingApi, type SubscriptionInfo, type BroadcastLog } from '../lib/api';
+import { roomsApi, billingApi, sessionsApi, type SubscriptionInfo, type BroadcastLog, type SessionInfo } from '../lib/api';
 import type { RoomInfo, LanguageCode } from '../lib/types';
 import { SUPPORTED_LANGUAGES, getLanguageInfo } from '../lib/types';
 import QRCodeDisplay from '../components/QRCodeDisplay';
@@ -16,7 +16,9 @@ export default function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Analysis expansion state
+  // Sessions state
+  const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
+  const [roomSessions, setRoomSessions] = useState<Record<string, SessionInfo[]>>({});
   const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
 
   // Billing state
@@ -109,6 +111,22 @@ export default function Dashboard() {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+
+  async function toggleRoomSessions(roomSlug: string) {
+    if (expandedRoom === roomSlug) {
+      setExpandedRoom(null);
+      return;
+    }
+    setExpandedRoom(roomSlug);
+    if (!roomSessions[roomSlug]) {
+      try {
+        const sessions = await sessionsApi.getByRoom(roomSlug);
+        setRoomSessions(prev => ({ ...prev, [roomSlug]: sessions }));
+      } catch (err) {
+        console.error('Failed to load sessions:', err);
+      }
+    }
   }
 
   async function handleCreateRoom(e: React.FormEvent) {
@@ -681,6 +699,12 @@ export default function Dashboard() {
                     Broadcast
                   </Link>
                   <button
+                    onClick={() => toggleRoomSessions(room.slug)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Sessions
+                  </button>
+                  <button
                     onClick={() => handleTogglePublic(room)}
                     className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
@@ -693,6 +717,72 @@ export default function Dashboard() {
                     Delete
                   </button>
                 </div>
+
+                {/* Sessions list */}
+                {expandedRoom === room.slug && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Sessions</h4>
+                    {!roomSessions[room.slug] ? (
+                      <div className="text-sm text-gray-400">Loading...</div>
+                    ) : roomSessions[room.slug].length === 0 ? (
+                      <div className="text-sm text-gray-400">No sessions yet</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {roomSessions[room.slug].map((session) => (
+                          <div key={session.id} className="bg-gray-50 rounded-lg p-3 text-sm">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="font-medium">{session.name}</span>
+                                <span className={`ml-2 px-1.5 py-0.5 text-xs rounded ${
+                                  session.status === 'complete' ? 'bg-green-100 text-green-700' :
+                                  session.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-blue-100 text-blue-700'
+                                }`}>
+                                  {session.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 text-gray-500">
+                                <span>{formatDuration(session.durationMinutes)}</span>
+                                <span>{session.peakListeners} listeners</span>
+                              </div>
+                            </div>
+
+                            {/* Transcript links */}
+                            {session.transcripts && session.transcripts.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {session.audioUrl && (
+                                  <a
+                                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/rooms/sessions/${session.id}/audio`}
+                                    className="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    Audio
+                                  </a>
+                                )}
+                                {session.transcripts.map((t) => (
+                                  <a
+                                    key={t.id}
+                                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/transcripts/${t.slug}`}
+                                    className={`text-xs px-2 py-1 rounded ${
+                                      t.type === 'verbatim'
+                                        ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                                        : 'text-purple-600 bg-purple-50 hover:bg-purple-100'
+                                    }`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    {t.type === 'verbatim' ? 'Verbatim' : `Summary (${t.language})`}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
