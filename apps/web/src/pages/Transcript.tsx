@@ -50,6 +50,21 @@ export default function Transcript() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {/* Session info header */}
+        {transcript.sessionName && (
+          <div className="mb-6 text-center">
+            <h1 className="text-2xl font-bold text-gray-900">{transcript.sessionName}</h1>
+            {transcript.sessionDate && (
+              <p className="text-gray-500 mt-1">
+                {new Date(transcript.sessionDate * 1000).toLocaleDateString('en-US', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                })}
+                {transcript.durationMinutes && ` \u2022 ${transcript.durationMinutes} minutes`}
+              </p>
+            )}
+          </div>
+        )}
+
         {(transcript.type === 'summary' || transcript.type === 'meeting_minutes') && content ? (
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h1 className="text-xl font-bold text-gray-900 mb-4">

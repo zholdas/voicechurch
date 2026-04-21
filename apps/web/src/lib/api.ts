@@ -206,6 +206,9 @@ export interface TranscriptContent {
   slug: string;
   access: string;
   sessionId: string;
+  sessionName: string | null;
+  sessionDate: number | null;
+  durationMinutes: number | null;
   qrImageUrl: string | null;
   createdAt: string;
 }

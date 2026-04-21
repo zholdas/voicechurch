@@ -550,7 +550,11 @@ router.get('/transcripts/by-slug/:slug', (req: Request, res: Response) => {
     const session = db.getSessionById(transcript.sessionId);
     if (session?.userId !== user.id) return res.status(403).json({ error: 'Access denied' });
   }
-  // 'public' and 'invited' — allow access
+  // 'invited' — for now same as public (future: check participant list)
+  // 'public' — allow access
+
+  // Enrich with session info
+  const session = db.getSessionById(transcript.sessionId);
 
   res.json({
     id: transcript.id,
@@ -560,6 +564,9 @@ router.get('/transcripts/by-slug/:slug', (req: Request, res: Response) => {
     slug: transcript.slug,
     access: transcript.access,
     sessionId: transcript.sessionId,
+    sessionName: session?.name || null,
+    sessionDate: session?.startedAt || null,
+    durationMinutes: session?.durationMinutes || null,
     qrImageUrl: transcript.qrImageUrl,
     createdAt: transcript.createdAt,
   });
