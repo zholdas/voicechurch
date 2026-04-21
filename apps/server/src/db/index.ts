@@ -407,6 +407,9 @@ export interface DbRoom {
   createdAt: Date;
   qrId: string | null;
   qrImageUrl: string | null;
+  transcriptEnabled: boolean;
+  transcriptTypes: string[];
+  transcriptAccess: string;
 }
 
 export function createRoom(data: {
@@ -565,6 +568,9 @@ function mapRoomRow(row: any): DbRoom {
     createdAt: new Date(row.created_at),
     qrId: row.qr_id || null,
     qrImageUrl: row.qr_image_url || null,
+    transcriptEnabled: row.transcript_enabled !== 0,
+    transcriptTypes: (() => { try { return JSON.parse(row.transcript_types || '["verbatim","summary"]'); } catch { return ['verbatim', 'summary']; } })(),
+    transcriptAccess: row.transcript_access || 'owner',
   };
 }
 

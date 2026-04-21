@@ -553,13 +553,19 @@ export function startBroadcastTracking(roomId: string, userId: string | null): v
 
   peakListeners.set(roomId, room.listeners.size);
 
+  // Read transcript settings from DB (persistent rooms have them)
+  const dbRoom = room.isPersistent ? db.getRoomById(roomId) : null;
+  const transcriptEnabled = dbRoom?.transcriptEnabled !== false;
+  const transcriptTypes = dbRoom?.transcriptTypes || ['verbatim', 'summary'];
+  const transcriptAccess = dbRoom?.transcriptAccess || 'owner';
+
   // Start recording (with or without broadcast log)
   const recordingId = logId || `rec-${roomId}-${Date.now()}`;
   recorder.startRecording(roomId, recordingId, !!logId, {
     roomName: room.name,
     sourceLanguage: room.sourceLanguage,
-    transcriptAccess: 'owner',
-    transcriptTypes: ['verbatim', 'summary'],
+    transcriptAccess,
+    transcriptTypes: transcriptEnabled ? transcriptTypes : [],
     userId,
   });
 
