@@ -195,6 +195,9 @@ export function updatePersistentRoom(
     sourceLanguage?: LanguageCode;
     targetLanguage?: LanguageCode;
     isPublic?: boolean;
+    transcriptEnabled?: boolean;
+    transcriptTypes?: string[];
+    transcriptAccess?: string;
   }
 ): Room | null {
   const room = rooms.get(roomId);

@@ -189,12 +189,15 @@ router.post('/', requireAuth, (req, res) => {
 // PUT /api/rooms/:id - Update a room (auth required, owner only)
 router.put('/:id', requireAuth, (req, res) => {
   const { id } = req.params;
-  const { name, sourceLanguage, targetLanguage, direction, isPublic } = req.body as {
+  const { name, sourceLanguage, targetLanguage, direction, isPublic, transcriptEnabled, transcriptTypes, transcriptAccess } = req.body as {
     name?: string;
     sourceLanguage?: LanguageCode;
     targetLanguage?: LanguageCode;
-    direction?: string; // For backwards compatibility
+    direction?: string;
     isPublic?: boolean;
+    transcriptEnabled?: boolean;
+    transcriptTypes?: string[];
+    transcriptAccess?: string;
   };
 
   // Handle language updates - new fields or backwards compatibility
@@ -223,6 +226,9 @@ router.put('/:id', requireAuth, (req, res) => {
     sourceLanguage: srcLang,
     targetLanguage: tgtLang,
     isPublic,
+    transcriptEnabled,
+    transcriptTypes,
+    transcriptAccess,
   });
 
   if (!room) {

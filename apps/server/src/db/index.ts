@@ -476,6 +476,9 @@ export function updateRoom(id: string, data: {
   sourceLanguage?: LanguageCode;
   targetLanguage?: LanguageCode;
   isPublic?: boolean;
+  transcriptEnabled?: boolean;
+  transcriptTypes?: string[];
+  transcriptAccess?: string;
 }): DbRoom | null {
   const room = getRoomById(id);
   if (!room) return null;
@@ -505,6 +508,18 @@ export function updateRoom(id: string, data: {
   if (data.isPublic !== undefined) {
     updates.push('is_public = ?');
     values.push(data.isPublic ? 1 : 0);
+  }
+  if (data.transcriptEnabled !== undefined) {
+    updates.push('transcript_enabled = ?');
+    values.push(data.transcriptEnabled ? 1 : 0);
+  }
+  if (data.transcriptTypes !== undefined) {
+    updates.push('transcript_types = ?');
+    values.push(JSON.stringify(data.transcriptTypes));
+  }
+  if (data.transcriptAccess !== undefined) {
+    updates.push('transcript_access = ?');
+    values.push(data.transcriptAccess);
   }
 
   if (updates.length > 0) {

@@ -16,8 +16,14 @@ export default function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sessions state
+  // Sessions and settings state
   const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
+  const [settingsRoom, setSettingsRoom] = useState<string | null>(null);
+  const [roomSettings, setRoomSettings] = useState<Record<string, {
+    transcriptEnabled: boolean;
+    transcriptTypes: string[];
+    transcriptAccess: string;
+  }>>({});
   const [roomSessions, setRoomSessions] = useState<Record<string, SessionInfo[]>>({});
   const [expandedAnalysis, setExpandedAnalysis] = useState<string | null>(null);
 
@@ -129,6 +135,36 @@ export default function Dashboard() {
       } catch (err) {
         console.error('Failed to load sessions:', err);
       }
+    }
+  }
+
+  function toggleSettings(roomId: string, _room: RoomInfo) {
+    if (settingsRoom === roomId) {
+      setSettingsRoom(null);
+      return;
+    }
+    setSettingsRoom(roomId);
+    // Initialize settings from room data (defaults if not set)
+    if (!roomSettings[roomId]) {
+      setRoomSettings(prev => ({
+        ...prev,
+        [roomId]: {
+          transcriptEnabled: true,
+          transcriptTypes: ['verbatim', 'summary'],
+          transcriptAccess: 'owner',
+        },
+      }));
+    }
+  }
+
+  async function saveRoomSettings(roomId: string) {
+    const settings = roomSettings[roomId];
+    if (!settings) return;
+    try {
+      await roomsApi.updateRoom(roomId, settings);
+      setSettingsRoom(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save settings');
     }
   }
 
@@ -809,6 +845,12 @@ export default function Dashboard() {
                     Sessions
                   </button>
                   <button
+                    onClick={() => toggleSettings(room.id, room)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Settings
+                  </button>
+                  <button
                     onClick={() => handleTogglePublic(room)}
                     className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
@@ -821,6 +863,89 @@ export default function Dashboard() {
                     Delete
                   </button>
                 </div>
+
+                {/* Room Settings */}
+                {settingsRoom === room.id && roomSettings[room.id] && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Transcription Settings</h4>
+
+                    <div className="space-y-3 text-sm">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={roomSettings[room.id].transcriptEnabled}
+                          onChange={(e) => setRoomSettings(prev => ({
+                            ...prev,
+                            [room.id]: { ...prev[room.id], transcriptEnabled: e.target.checked }
+                          }))}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                        />
+                        <span>Enable transcription</span>
+                      </label>
+
+                      {roomSettings[room.id].transcriptEnabled && (
+                        <>
+                          <div className="ml-6 space-y-2">
+                            {(['verbatim', 'summary', 'meeting_minutes', 'recap'] as const).map(type => (
+                              <label key={type} className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={roomSettings[room.id].transcriptTypes.includes(type)}
+                                  onChange={(e) => {
+                                    const types = e.target.checked
+                                      ? [...roomSettings[room.id].transcriptTypes, type]
+                                      : roomSettings[room.id].transcriptTypes.filter(t => t !== type);
+                                    setRoomSettings(prev => ({
+                                      ...prev,
+                                      [room.id]: { ...prev[room.id], transcriptTypes: types }
+                                    }));
+                                  }}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded"
+                                />
+                                <span>
+                                  {type === 'verbatim' ? 'Verbatim' :
+                                   type === 'summary' ? 'Summary' :
+                                   type === 'meeting_minutes' ? 'Meeting Minutes' : 'Recap'}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+
+                          <div className="ml-6">
+                            <label className="block text-gray-700 mb-1">Access</label>
+                            <select
+                              value={roomSettings[room.id].transcriptAccess}
+                              onChange={(e) => setRoomSettings(prev => ({
+                                ...prev,
+                                [room.id]: { ...prev[room.id], transcriptAccess: e.target.value }
+                              }))}
+                              className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                            >
+                              <option value="owner">Only me</option>
+                              <option value="invited">Invited members</option>
+                              <option value="public">Public</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={() => saveRoomSettings(room.id)}
+                          className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setSettingsRoom(null)}
+                          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Sessions list */}
                 {expandedRoom === room.slug && (

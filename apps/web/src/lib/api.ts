@@ -64,6 +64,9 @@ export const roomsApi = {
       sourceLanguage?: LanguageCode;
       targetLanguage?: LanguageCode;
       isPublic?: boolean;
+      transcriptEnabled?: boolean;
+      transcriptTypes?: string[];
+      transcriptAccess?: string;
     }
   ) =>
     fetchApi<RoomInfo>(`/api/rooms/${id}`, {
