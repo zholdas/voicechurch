@@ -4,6 +4,8 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { promisify } from 'util';
 import { uploadToR2, isR2Configured } from './r2.js';
+import { generateQRCode } from './qr-local.js';
+import { config } from '../config.js';
 import * as db from '../db/index.js';
 import type { LanguageCode } from '../websocket/types.js';
 
@@ -29,6 +31,16 @@ interface ActiveRecording {
 }
 
 const MAX_AUDIO_BYTES = 120 * 1024 * 1024; // 120MB limit (~60 min of 16kHz PCM)
+
+async function generateTranscriptQR(transcriptId: string, slug: string): Promise<void> {
+  try {
+    const url = `${config.appUrl}/t/${slug}`;
+    const { dataUrl } = await generateQRCode(url);
+    db.updateTranscriptQR(transcriptId, `local-${transcriptId}`, dataUrl);
+  } catch (error) {
+    console.error(`Failed to generate QR for transcript ${slug}:`, error);
+  }
+}
 
 const recordings = new Map<string, ActiveRecording>();
 
@@ -155,14 +167,16 @@ export async function finalize(roomId: string): Promise<void> {
         })),
       });
 
-      db.createTranscript({
+      const verbatimSlug = `${session?.slug || sessionId}-verbatim`;
+      const verbatim = db.createTranscript({
         sessionId,
         type: 'verbatim',
         language: 'multi',
         content: verbatimContent,
-        slug: `${session?.slug || sessionId}-verbatim`,
+        slug: verbatimSlug,
         access: recording.transcriptAccess,
       });
+      generateTranscriptQR(verbatim.id, verbatimSlug);
       console.log(`Verbatim transcript created for session ${sessionId}`);
     } catch (error) {
       console.error(`Failed to create verbatim transcript:`, error);
@@ -190,14 +204,16 @@ export async function finalize(roomId: string): Promise<void> {
         }
 
         if (sessionId) {
-          db.createTranscript({
+          const srcSummarySlug = `${sessionSlug}-summary-${recording.sourceLanguage}`;
+          const srcSummary = db.createTranscript({
             sessionId,
             type: 'summary',
             language: recording.sourceLanguage,
             content: JSON.stringify(sourceResult),
-            slug: `${sessionSlug}-summary-${recording.sourceLanguage}`,
+            slug: srcSummarySlug,
             access: recording.transcriptAccess,
           });
+          generateTranscriptQR(srcSummary.id, srcSummarySlug);
           console.log(`Summary (${recording.sourceLanguage}) created for session ${sessionId}`);
         }
 
@@ -216,14 +232,16 @@ export async function finalize(roomId: string): Promise<void> {
             const translatedResult = await analyzeTranscript(transcripts, targetLang);
 
             if (sessionId) {
-              db.createTranscript({
+              const tgtSummarySlug = `${sessionSlug}-summary-${targetLang}`;
+              const tgtSummary = db.createTranscript({
                 sessionId,
                 type: 'summary',
                 language: targetLang,
                 content: JSON.stringify(translatedResult),
-                slug: `${sessionSlug}-summary-${targetLang}`,
+                slug: tgtSummarySlug,
                 access: recording.transcriptAccess,
               });
+              generateTranscriptQR(tgtSummary.id, tgtSummarySlug);
               console.log(`Summary (${targetLang}) created for session ${sessionId}`);
             }
           } catch (error) {
