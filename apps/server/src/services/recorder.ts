@@ -28,6 +28,7 @@ interface ActiveRecording {
   roomName: string;
   sourceLanguage: string;
   transcriptAccess: string;
+  transcriptTypes: string[];
 }
 
 const MAX_AUDIO_BYTES = 120 * 1024 * 1024; // 120MB limit (~60 min of 16kHz PCM)
@@ -48,6 +49,7 @@ export function startRecording(roomId: string, broadcastLogId: string, hasDbLog:
   roomName?: string;
   sourceLanguage?: string;
   transcriptAccess?: string;
+  transcriptTypes?: string[];
   userId?: string | null;
 }): void {
   if (recordings.has(roomId)) {
@@ -58,6 +60,7 @@ export function startRecording(roomId: string, broadcastLogId: string, hasDbLog:
   const roomName = options?.roomName || 'Broadcast';
   const sourceLanguage = options?.sourceLanguage || 'en';
   const transcriptAccess = options?.transcriptAccess || 'owner';
+  const transcriptTypes = options?.transcriptTypes || ['verbatim', 'summary'];
 
   // Create session
   let sessionId: string | null = null;
@@ -92,6 +95,7 @@ export function startRecording(roomId: string, broadcastLogId: string, hasDbLog:
     roomName,
     sourceLanguage,
     transcriptAccess,
+    transcriptTypes,
   });
 
   console.log(`Recording started for room ${roomId} (broadcast: ${broadcastLogId}, session: ${sessionId})`);
@@ -183,8 +187,10 @@ export async function finalize(roomId: string): Promise<void> {
     }
   }
 
-  // Run AI analysis → create summary transcripts per language (async, non-blocking)
-  if (transcripts.length > 0) {
+  // Run AI analysis → create transcript entities per type and language (async, non-blocking)
+  const aiTypes = recording.transcriptTypes.filter(t => t !== 'verbatim') as Array<'summary' | 'meeting_minutes' | 'recap'>;
+
+  if (transcripts.length > 0 && aiTypes.length > 0) {
     const saveAnalysis = async () => {
       try {
         const { analyzeTranscript, isAnalysisConfigured } = await import('./ai-analysis.js');
@@ -196,28 +202,7 @@ export async function finalize(roomId: string): Promise<void> {
         const session = sessionId ? db.getSessionById(sessionId) : null;
         const sessionSlug = session?.slug || sessionId || broadcastLogId;
 
-        // 1. Summary in source language
-        const sourceResult = await analyzeTranscript(transcripts);
-
-        if (recording.hasDbLog) {
-          db.updateBroadcastLogAnalysis(broadcastLogId, JSON.stringify(sourceResult));
-        }
-
-        if (sessionId) {
-          const srcSummarySlug = `${sessionSlug}-summary-${recording.sourceLanguage}`;
-          const srcSummary = db.createTranscript({
-            sessionId,
-            type: 'summary',
-            language: recording.sourceLanguage,
-            content: JSON.stringify(sourceResult),
-            slug: srcSummarySlug,
-            access: recording.transcriptAccess,
-          });
-          generateTranscriptQR(srcSummary.id, srcSummarySlug);
-          console.log(`Summary (${recording.sourceLanguage}) created for session ${sessionId}`);
-        }
-
-        // 2. Summary in each translation language
+        // Collect translation languages
         const translationLanguages = new Set<string>();
         for (const t of transcripts) {
           for (const lang of Object.keys(t.translations)) {
@@ -227,25 +212,54 @@ export async function finalize(roomId: string): Promise<void> {
           }
         }
 
-        for (const targetLang of translationLanguages) {
+        for (const aiType of aiTypes) {
+          // Source language analysis
           try {
-            const translatedResult = await analyzeTranscript(transcripts, targetLang);
+            const sourceResult = await analyzeTranscript(transcripts, undefined, aiType);
+
+            // Backward compat: save summary to broadcast_logs
+            if (aiType === 'summary' && recording.hasDbLog) {
+              db.updateBroadcastLogAnalysis(broadcastLogId, JSON.stringify(sourceResult));
+            }
 
             if (sessionId) {
-              const tgtSummarySlug = `${sessionSlug}-summary-${targetLang}`;
-              const tgtSummary = db.createTranscript({
+              const slug = `${sessionSlug}-${aiType}-${recording.sourceLanguage}`;
+              const transcript = db.createTranscript({
                 sessionId,
-                type: 'summary',
-                language: targetLang,
-                content: JSON.stringify(translatedResult),
-                slug: tgtSummarySlug,
+                type: aiType,
+                language: recording.sourceLanguage,
+                content: JSON.stringify(sourceResult),
+                slug,
                 access: recording.transcriptAccess,
               });
-              generateTranscriptQR(tgtSummary.id, tgtSummarySlug);
-              console.log(`Summary (${targetLang}) created for session ${sessionId}`);
+              generateTranscriptQR(transcript.id, slug);
+              console.log(`${aiType} (${recording.sourceLanguage}) created for session ${sessionId}`);
             }
           } catch (error) {
-            console.error(`Failed to create summary for ${targetLang}:`, error);
+            console.error(`Failed to create ${aiType} (${recording.sourceLanguage}):`, error);
+          }
+
+          // Translated versions
+          for (const targetLang of translationLanguages) {
+            try {
+              const translatedResult = await analyzeTranscript(transcripts, targetLang, aiType);
+
+              if (sessionId) {
+                const slug = `${sessionSlug}-${aiType}-${targetLang}`;
+                const transcript = db.createTranscript({
+                  sessionId,
+                  type: aiType,
+                  language: targetLang,
+                  content: JSON.stringify(translatedResult),
+                  slug,
+                  access: recording.transcriptAccess,
+                });
+                generateTranscriptQR(transcript.id, slug);
+                console.log(`${aiType} (${targetLang}) created for session ${sessionId}`);
+              }
+            } catch (error) {
+              console.error(`Failed to create ${aiType} (${targetLang}):`, error);
+            }
           }
         }
 

@@ -1186,10 +1186,12 @@ function mapSessionRow(row: any): DbSession {
 // Transcript types and functions
 // ============================================
 
+export type TranscriptType = 'verbatim' | 'summary' | 'meeting_minutes' | 'recap';
+
 export interface DbTranscript {
   id: string;
   sessionId: string;
-  type: 'verbatim' | 'summary';
+  type: TranscriptType;
   language: string;
   content: string; // JSON
   slug: string;
@@ -1201,7 +1203,7 @@ export interface DbTranscript {
 
 export function createTranscript(data: {
   sessionId: string;
-  type: 'verbatim' | 'summary';
+  type: TranscriptType;
   language: string;
   content: string;
   slug: string;

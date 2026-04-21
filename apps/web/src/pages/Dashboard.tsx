@@ -661,6 +661,34 @@ export default function Dashboard() {
                         />
                         <span className="text-sm text-gray-700">Summary (AI-generated)</span>
                       </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={newRoom.transcriptTypes.includes('meeting_minutes')}
+                          onChange={(e) => {
+                            const types = e.target.checked
+                              ? [...newRoom.transcriptTypes, 'meeting_minutes']
+                              : newRoom.transcriptTypes.filter(t => t !== 'meeting_minutes');
+                            setNewRoom({ ...newRoom, transcriptTypes: types });
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Meeting Minutes (decisions, actions, next steps)</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={newRoom.transcriptTypes.includes('recap')}
+                          onChange={(e) => {
+                            const types = e.target.checked
+                              ? [...newRoom.transcriptTypes, 'recap']
+                              : newRoom.transcriptTypes.filter(t => t !== 'recap');
+                            setNewRoom({ ...newRoom, transcriptTypes: types });
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Recap (1-2 sentence overview)</span>
+                      </label>
                     </div>
 
                     <div className="ml-6">
@@ -848,7 +876,10 @@ export default function Dashboard() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
-                                    {t.type === 'verbatim' ? 'Verbatim' : `Summary (${t.language})`}
+                                    {t.type === 'verbatim' ? 'Verbatim'
+                                      : t.type === 'summary' ? `Summary (${t.language})`
+                                      : t.type === 'meeting_minutes' ? `Minutes (${t.language})`
+                                      : `Recap (${t.language})`}
                                   </a>
                                 ))}
                               </div>

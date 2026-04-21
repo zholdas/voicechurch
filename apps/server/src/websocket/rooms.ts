@@ -559,6 +559,7 @@ export function startBroadcastTracking(roomId: string, userId: string | null): v
     roomName: room.name,
     sourceLanguage: room.sourceLanguage,
     transcriptAccess: 'owner',
+    transcriptTypes: ['verbatim', 'summary'],
     userId,
   });
 

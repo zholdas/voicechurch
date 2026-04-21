@@ -191,7 +191,7 @@ export interface SessionInfo {
 
 export interface TranscriptInfo {
   id: string;
-  type: 'verbatim' | 'summary';
+  type: 'verbatim' | 'summary' | 'meeting_minutes' | 'recap';
   language: string;
   slug: string;
   access: string;
@@ -200,7 +200,7 @@ export interface TranscriptInfo {
 
 export interface TranscriptContent {
   id: string;
-  type: 'verbatim' | 'summary';
+  type: 'verbatim' | 'summary' | 'meeting_minutes' | 'recap';
   language: string;
   content: any;
   slug: string;

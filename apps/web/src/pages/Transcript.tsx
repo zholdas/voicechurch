@@ -50,13 +50,26 @@ export default function Transcript() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {transcript.type === 'summary' && content ? (
+        {(transcript.type === 'summary' || transcript.type === 'meeting_minutes') && content ? (
           <div className="bg-white rounded-xl shadow-lg p-6">
-            <h1 className="text-xl font-bold text-gray-900 mb-4">Summary</h1>
+            <h1 className="text-xl font-bold text-gray-900 mb-4">
+              {transcript.type === 'meeting_minutes' ? 'Meeting Minutes' : 'Summary'}
+            </h1>
 
             {content.summary && (
               <div className="mb-6">
                 <p className="text-gray-700 leading-relaxed">{content.summary}</p>
+              </div>
+            )}
+
+            {content.agenda && content.agenda.length > 0 && (
+              <div className="mb-6">
+                <h2 className="font-semibold text-gray-800 mb-2">Agenda / Topics</h2>
+                <ul className="list-disc list-inside space-y-1 text-gray-600">
+                  {content.agenda.map((item: string, i: number) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -71,6 +84,20 @@ export default function Transcript() {
               </div>
             )}
 
+            {content.attendeeActions && content.attendeeActions.length > 0 && (
+              <div className="mb-6">
+                <h2 className="font-semibold text-gray-800 mb-2">Commitments</h2>
+                <div className="space-y-2">
+                  {content.attendeeActions.map((a: any, i: number) => (
+                    <div key={i} className="flex gap-2 text-gray-600">
+                      <span className="font-medium text-gray-700">{a.person}:</span>
+                      <span>{a.action}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {content.keyDecisions && content.keyDecisions.length > 0 && (
               <div className="mb-6">
                 <h2 className="font-semibold text-gray-800 mb-2">Key Decisions</h2>
@@ -81,6 +108,22 @@ export default function Transcript() {
                 </ul>
               </div>
             )}
+
+            {content.nextSteps && content.nextSteps.length > 0 && (
+              <div className="mb-6">
+                <h2 className="font-semibold text-gray-800 mb-2">Next Steps</h2>
+                <ul className="list-disc list-inside space-y-1 text-gray-600">
+                  {content.nextSteps.map((item: string, i: number) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : transcript.type === 'recap' && content ? (
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h1 className="text-xl font-bold text-gray-900 mb-4">Recap</h1>
+            <p className="text-gray-700 text-lg leading-relaxed">{content.recap || content.summary || ''}</p>
           </div>
         ) : transcript.type === 'verbatim' && content?.segments ? (
           <div className="bg-white rounded-xl shadow-lg p-6">
