@@ -35,6 +35,9 @@ export default function Dashboard() {
     sourceLanguage: 'en' as LanguageCode,
     targetLanguage: 'es' as LanguageCode,
     isPublic: false,
+    transcriptEnabled: true,
+    transcriptTypes: ['verbatim', 'summary'] as string[],
+    transcriptAccess: 'owner' as string,
   });
 
   // Redirect if not authenticated
@@ -143,6 +146,9 @@ export default function Dashboard() {
         sourceLanguage: 'en',
         targetLanguage: 'es',
         isPublic: false,
+        transcriptEnabled: true,
+        transcriptTypes: ['verbatim', 'summary'],
+        transcriptAccess: 'owner',
       });
       setShowCreateForm(false);
       await loadRooms();
@@ -603,6 +609,76 @@ export default function Dashboard() {
                 <label htmlFor="isPublic" className="text-sm text-gray-700">
                   Public room (visible on home page)
                 </label>
+              </div>
+
+              {/* Transcript Settings */}
+              <div className="border-t border-gray-200 pt-4 mt-2">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Transcription Settings</h3>
+
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="checkbox"
+                    id="transcriptEnabled"
+                    checked={newRoom.transcriptEnabled}
+                    onChange={(e) =>
+                      setNewRoom({ ...newRoom, transcriptEnabled: e.target.checked })
+                    }
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="transcriptEnabled" className="text-sm text-gray-700">
+                    Enable transcription
+                  </label>
+                </div>
+
+                {newRoom.transcriptEnabled && (
+                  <>
+                    <div className="mb-3 ml-6 space-y-2">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={newRoom.transcriptTypes.includes('verbatim')}
+                          onChange={(e) => {
+                            const types = e.target.checked
+                              ? [...newRoom.transcriptTypes, 'verbatim']
+                              : newRoom.transcriptTypes.filter(t => t !== 'verbatim');
+                            setNewRoom({ ...newRoom, transcriptTypes: types });
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Verbatim (full transcript)</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={newRoom.transcriptTypes.includes('summary')}
+                          onChange={(e) => {
+                            const types = e.target.checked
+                              ? [...newRoom.transcriptTypes, 'summary']
+                              : newRoom.transcriptTypes.filter(t => t !== 'summary');
+                            setNewRoom({ ...newRoom, transcriptTypes: types });
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">Summary (AI-generated)</span>
+                      </label>
+                    </div>
+
+                    <div className="ml-6">
+                      <label className="block text-sm text-gray-700 mb-1">Transcript access</label>
+                      <select
+                        value={newRoom.transcriptAccess}
+                        onChange={(e) =>
+                          setNewRoom({ ...newRoom, transcriptAccess: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="owner">Only me</option>
+                        <option value="invited">Invited members</option>
+                        <option value="public">Public (anyone with link)</option>
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex gap-3 pt-2">

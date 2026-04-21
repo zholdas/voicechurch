@@ -117,6 +117,9 @@ export function createPersistentRoom(options: {
   targetLanguage: LanguageCode;
   isPublic: boolean;
   ownerId: string;
+  transcriptEnabled?: boolean;
+  transcriptTypes?: string[];
+  transcriptAccess?: string;
 }): Room {
   // Validate slug
   if (!validateSlug(options.slug)) {
@@ -136,6 +139,9 @@ export function createPersistentRoom(options: {
     targetLanguage: options.targetLanguage,
     isPublic: options.isPublic,
     ownerId: options.ownerId,
+    transcriptEnabled: options.transcriptEnabled,
+    transcriptTypes: options.transcriptTypes,
+    transcriptAccess: options.transcriptAccess,
   });
 
   // Create in-memory room

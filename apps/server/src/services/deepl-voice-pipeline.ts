@@ -69,8 +69,6 @@ export class DeepLVoicePipeline implements TranslationPipeline {
         requestBody.source_language = langConfig.deeplSourceCode.toUpperCase();
         requestBody.source_language_mode = 'fixed';
       }
-      console.log(`[deepl-voice] Session request body:`, JSON.stringify(requestBody));
-
       const response = await fetch(`${DEEPL_VOICE_API_BASE}/v3/voice/realtime`, {
         method: 'POST',
         headers: {
@@ -113,10 +111,7 @@ export class DeepLVoicePipeline implements TranslationPipeline {
 
       ws.on('message', (data) => {
         try {
-          const raw = data.toString();
-          const message = JSON.parse(raw);
-          const keys = Object.keys(message);
-          console.log(`[deepl-voice] Received for room ${roomId}: ${keys.join(', ')} | ${raw.substring(0, 200)}`);
+          const message = JSON.parse(data.toString());
           this.handleDeepLMessage(roomId, message);
         } catch (error) {
           console.error(`Failed to parse DeepL Voice message for room ${roomId}:`, error);

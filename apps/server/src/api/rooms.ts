@@ -70,13 +70,16 @@ router.get('/:slug', (req, res) => {
 
 // POST /api/rooms - Create a new room (auth required)
 router.post('/', requireAuth, (req, res) => {
-  const { name, slug, sourceLanguage, targetLanguage, direction, isPublic } = req.body as {
+  const { name, slug, sourceLanguage, targetLanguage, direction, isPublic, transcriptEnabled, transcriptTypes, transcriptAccess } = req.body as {
     name: string;
     slug: string;
     sourceLanguage?: LanguageCode;
     targetLanguage?: LanguageCode;
-    direction?: string; // For backwards compatibility
+    direction?: string;
     isPublic?: boolean;
+    transcriptEnabled?: boolean;
+    transcriptTypes?: string[];
+    transcriptAccess?: string;
   };
 
   // Validate required fields
@@ -123,6 +126,9 @@ router.post('/', requireAuth, (req, res) => {
       targetLanguage: tgtLang,
       isPublic: isPublic ?? false,
       ownerId: req.user!.id,
+      transcriptEnabled: transcriptEnabled,
+      transcriptTypes: transcriptTypes,
+      transcriptAccess: transcriptAccess,
     });
 
     // Generate QR code asynchronously (don't block room creation)

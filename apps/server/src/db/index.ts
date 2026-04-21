@@ -416,12 +416,15 @@ export function createRoom(data: {
   targetLanguage: LanguageCode;
   isPublic: boolean;
   ownerId: string;
+  transcriptEnabled?: boolean;
+  transcriptTypes?: string[];
+  transcriptAccess?: string;
 }): DbRoom {
   const id = crypto.randomUUID().slice(0, 8);
   const direction = languagesToDirection(data.sourceLanguage, data.targetLanguage);
   const stmt = db.prepare(`
-    INSERT INTO rooms (id, slug, name, direction, source_language, target_language, is_public, owner_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO rooms (id, slug, name, direction, source_language, target_language, is_public, owner_id, transcript_enabled, transcript_types, transcript_access)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   stmt.run(
     id,
@@ -431,7 +434,10 @@ export function createRoom(data: {
     data.sourceLanguage,
     data.targetLanguage,
     data.isPublic ? 1 : 0,
-    data.ownerId
+    data.ownerId,
+    data.transcriptEnabled !== false ? 1 : 0,
+    JSON.stringify(data.transcriptTypes || ['verbatim', 'summary']),
+    data.transcriptAccess || 'owner'
   );
   return getRoomById(id)!;
 }
