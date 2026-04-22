@@ -86,6 +86,26 @@ try {
   // Column already exists, ignore
 }
 
+// Migration: Free demo minutes
+try { db.exec(`ALTER TABLE users ADD COLUMN demo_minutes_remaining INTEGER DEFAULT 20`); } catch { /* exists */ }
+try { db.exec(`ALTER TABLE users ADD COLUMN demo_minutes_used INTEGER DEFAULT 0`); } catch { /* exists */ }
+
+// Migration: one_time_passes table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS one_time_passes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    stripe_payment_id TEXT,
+    minutes_total INTEGER NOT NULL,
+    minutes_used INTEGER DEFAULT 0,
+    max_listeners INTEGER NOT NULL,
+    status TEXT DEFAULT 'active',
+    purchased_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_one_time_passes_user ON one_time_passes(user_id);
+`);
+
 // Migration: Add apple_id to users
 try {
   db.exec(`ALTER TABLE users ADD COLUMN apple_id TEXT UNIQUE`);
@@ -1274,5 +1294,172 @@ function mapTranscriptRow(row: any): DbTranscript {
     qrId: row.qr_id,
     qrImageUrl: row.qr_image_url,
     createdAt: row.created_at,
+  };
+}
+
+// ============================================
+// Usage Source (unified access to minutes)
+// ============================================
+
+export interface UsageSource {
+  type: 'subscription' | 'event_pass' | 'demo';
+  id: string;
+  minutesRemaining: number;
+  maxListeners: number;
+}
+
+export function getActiveUsageSource(userId: string): UsageSource | null {
+  // 1. Check active subscription
+  const subscription = getActiveSubscription(userId);
+  if (subscription) {
+    const plan = getPlanById(subscription.planId);
+    if (plan) {
+      const usage = getCurrentUsage(userId);
+      const minutesUsed = usage?.minutesUsed || 0;
+      const remaining = Math.max(0, plan.minutesPerMonth - minutesUsed);
+      if (remaining > 0) {
+        return {
+          type: 'subscription',
+          id: subscription.id,
+          minutesRemaining: remaining,
+          maxListeners: plan.maxListeners,
+        };
+      }
+    }
+  }
+
+  // 2. Check one-time passes
+  const pass = getActivePass(userId);
+  if (pass) {
+    return {
+      type: 'event_pass',
+      id: pass.id,
+      minutesRemaining: pass.minutesTotal - pass.minutesUsed,
+      maxListeners: pass.maxListeners,
+    };
+  }
+
+  // 3. Check free demo
+  const user = getUserById(userId);
+  if (user) {
+    const demoRemaining = (user as any).demo_minutes_remaining ?? 20;
+    if (demoRemaining > 0) {
+      return {
+        type: 'demo',
+        id: userId,
+        minutesRemaining: demoRemaining,
+        maxListeners: 50,
+      };
+    }
+  }
+
+  return null;
+}
+
+export function consumeMinute(source: UsageSource): { success: boolean; minutesRemaining: number } {
+  if (source.type === 'subscription') {
+    const usage = incrementUsage(source.id.split(':')[0] || source.id, 1);
+    if (!usage) return { success: false, minutesRemaining: 0 };
+    const subscription = getActiveSubscription(source.id.split(':')[0] || source.id);
+    const plan = subscription ? getPlanById(subscription.planId) : null;
+    const remaining = plan ? Math.max(0, plan.minutesPerMonth - usage.minutesUsed) : 0;
+    return { success: true, minutesRemaining: remaining };
+  }
+
+  if (source.type === 'event_pass') {
+    const stmt = db.prepare('UPDATE one_time_passes SET minutes_used = minutes_used + 1 WHERE id = ? AND minutes_used < minutes_total');
+    const result = stmt.run(source.id);
+    if (result.changes === 0) {
+      db.prepare('UPDATE one_time_passes SET status = ? WHERE id = ?').run('exhausted', source.id);
+      return { success: false, minutesRemaining: 0 };
+    }
+    const pass = getActivePass(source.id);
+    return { success: true, minutesRemaining: pass ? pass.minutesTotal - pass.minutesUsed : 0 };
+  }
+
+  if (source.type === 'demo') {
+    const stmt = db.prepare('UPDATE users SET demo_minutes_remaining = MAX(0, demo_minutes_remaining - 1), demo_minutes_used = demo_minutes_used + 1 WHERE id = ? AND demo_minutes_remaining > 0');
+    const result = stmt.run(source.id);
+    if (result.changes === 0) return { success: false, minutesRemaining: 0 };
+    const user = getUserById(source.id);
+    return { success: true, minutesRemaining: (user as any)?.demo_minutes_remaining ?? 0 };
+  }
+
+  return { success: false, minutesRemaining: 0 };
+}
+
+// ============================================
+// One-Time Pass functions
+// ============================================
+
+export interface DbOneTimePass {
+  id: string;
+  userId: string;
+  stripePaymentId: string | null;
+  minutesTotal: number;
+  minutesUsed: number;
+  maxListeners: number;
+  status: string;
+  purchasedAt: number;
+}
+
+export function createOneTimePass(data: {
+  userId: string;
+  stripePaymentId?: string;
+  minutesTotal: number;
+  maxListeners: number;
+}): DbOneTimePass {
+  const id = crypto.randomUUID();
+  const stmt = db.prepare(`
+    INSERT INTO one_time_passes (id, user_id, stripe_payment_id, minutes_total, max_listeners, purchased_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+  stmt.run(id, data.userId, data.stripePaymentId || null, data.minutesTotal, data.maxListeners, Math.floor(Date.now() / 1000));
+  return getPassById(id)!;
+}
+
+export function getActivePass(userId: string): DbOneTimePass | null {
+  const stmt = db.prepare(`
+    SELECT * FROM one_time_passes
+    WHERE user_id = ? AND status = 'active' AND minutes_used < minutes_total
+    ORDER BY purchased_at ASC LIMIT 1
+  `);
+  const row = stmt.get(userId) as any;
+  if (!row) return null;
+  return mapPassRow(row);
+}
+
+export function getPassById(id: string): DbOneTimePass | null {
+  const stmt = db.prepare('SELECT * FROM one_time_passes WHERE id = ?');
+  const row = stmt.get(id) as any;
+  if (!row) return null;
+  return mapPassRow(row);
+}
+
+export function getPassesByUser(userId: string): DbOneTimePass[] {
+  const stmt = db.prepare('SELECT * FROM one_time_passes WHERE user_id = ? ORDER BY purchased_at DESC');
+  return (stmt.all(userId) as any[]).map(mapPassRow);
+}
+
+function mapPassRow(row: any): DbOneTimePass {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    stripePaymentId: row.stripe_payment_id,
+    minutesTotal: row.minutes_total,
+    minutesUsed: row.minutes_used,
+    maxListeners: row.max_listeners,
+    status: row.status,
+    purchasedAt: row.purchased_at,
+  };
+}
+
+// Get user demo minutes
+export function getUserDemoMinutes(userId: string): { remaining: number; used: number } {
+  const stmt = db.prepare('SELECT demo_minutes_remaining, demo_minutes_used FROM users WHERE id = ?');
+  const row = stmt.get(userId) as any;
+  return {
+    remaining: row?.demo_minutes_remaining ?? 20,
+    used: row?.demo_minutes_used ?? 0,
   };
 }

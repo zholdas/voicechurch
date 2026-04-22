@@ -572,36 +572,48 @@ export function startBroadcastTracking(roomId: string, userId: string | null): v
     userId,
   });
 
-  // Start usage timer (increment every minute) — only for authenticated users
+  // Get initial usage source
+  const usageSource = userId ? db.getActiveUsageSource(userId) : null;
+  if (usageSource) {
+    console.log(`Usage source: ${usageSource.type} (${usageSource.minutesRemaining} min remaining)`);
+  }
+
+  // Start usage timer (increment every minute)
   const timer = setInterval(() => {
     if (!userId) return;
-    const usage = db.incrementUsage(userId, 1);
-    if (usage) {
-      const subscription = db.getActiveSubscription(userId);
-      const plan = subscription ? db.getPlanById(subscription.planId) : null;
 
-      if (plan && usage.minutesUsed >= plan.minutesPerMonth) {
-        // Minutes exceeded - notify broadcaster and stop
-        const broadcaster = room.broadcaster;
-        if (broadcaster && broadcaster.readyState === broadcaster.OPEN) {
-          broadcaster.send(JSON.stringify({
-            type: 'broadcast_stopped',
-            reason: 'MINUTES_EXCEEDED',
-          }));
-        }
-        stopBroadcastTracking(roomId);
-      } else if (plan) {
-        const remaining = plan.minutesPerMonth - usage.minutesUsed;
-        // Warn when 5 or fewer minutes remaining
-        if (remaining <= 5 && remaining > 0) {
-          const broadcaster = room.broadcaster;
-          if (broadcaster && broadcaster.readyState === broadcaster.OPEN) {
-            broadcaster.send(JSON.stringify({
-              type: 'usage_warning',
-              minutesRemaining: remaining,
-            }));
-          }
-        }
+    const currentSource = db.getActiveUsageSource(userId);
+    if (!currentSource) {
+      // No minutes — stop broadcast
+      const broadcaster = room.broadcaster;
+      if (broadcaster && broadcaster.readyState === broadcaster.OPEN) {
+        broadcaster.send(JSON.stringify({
+          type: 'broadcast_stopped',
+          reason: 'MINUTES_EXCEEDED',
+        }));
+      }
+      stopBroadcastTracking(roomId);
+      return;
+    }
+
+    const result = db.consumeMinute(currentSource);
+
+    if (!result.success) {
+      const broadcaster = room.broadcaster;
+      if (broadcaster && broadcaster.readyState === broadcaster.OPEN) {
+        broadcaster.send(JSON.stringify({
+          type: 'broadcast_stopped',
+          reason: 'MINUTES_EXCEEDED',
+        }));
+      }
+      stopBroadcastTracking(roomId);
+    } else if (result.minutesRemaining <= 5 && result.minutesRemaining > 0) {
+      const broadcaster = room.broadcaster;
+      if (broadcaster && broadcaster.readyState === broadcaster.OPEN) {
+        broadcaster.send(JSON.stringify({
+          type: 'usage_warning',
+          minutesRemaining: result.minutesRemaining,
+        }));
       }
     }
   }, 60000); // Every minute

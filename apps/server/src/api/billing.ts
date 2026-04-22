@@ -11,6 +11,10 @@ import {
   getUserById,
   getUserByApiToken,
   hasUsedTrial,
+  getUserDemoMinutes,
+  getActivePass,
+  getPassesByUser,
+  getActiveUsageSource,
 } from '../db/index.js';
 import {
   createCheckoutSession,
@@ -64,12 +68,24 @@ router.get('/subscription', requireAuth, (req, res) => {
   const subscription = getActiveSubscription(userId);
   const canStartTrial = !hasUsedTrial(userId) && !subscription;
 
+  // Always include demo + event pass info
+  const demo = getUserDemoMinutes(userId);
+  const eventPasses = getPassesByUser(userId);
+  const activeSource = getActiveUsageSource(userId);
+
   if (!subscription) {
     return res.json({
       status: 'none',
       plan: null,
       usage: null,
       canStartTrial,
+      demo,
+      eventPasses: eventPasses.map(p => ({
+        id: p.id, minutesRemaining: p.minutesTotal - p.minutesUsed,
+        minutesTotal: p.minutesTotal, purchasedAt: p.purchasedAt, status: p.status,
+      })),
+      activeSource: activeSource ? activeSource.type : null,
+      activeSourceMinutes: activeSource?.minutesRemaining ?? 0,
     });
   }
 
@@ -101,6 +117,13 @@ router.get('/subscription', requireAuth, (req, res) => {
       minutesLimit,
       percentUsed,
     },
+    demo,
+    eventPasses: eventPasses.map(p => ({
+      id: p.id, minutesRemaining: p.minutesTotal - p.minutesUsed,
+      minutesTotal: p.minutesTotal, purchasedAt: p.purchasedAt, status: p.status,
+    })),
+    activeSource: activeSource ? activeSource.type : null,
+    activeSourceMinutes: activeSource?.minutesRemaining ?? 0,
   });
 });
 

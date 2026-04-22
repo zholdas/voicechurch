@@ -66,6 +66,7 @@ export const config = {
       growingYearly: process.env.STRIPE_PRICE_GROWING_YEARLY || '',
       multiplyingMonthly: process.env.STRIPE_PRICE_MULTIPLYING_MONTHLY || '',
       multiplyingYearly: process.env.STRIPE_PRICE_MULTIPLYING_YEARLY || '',
+      eventPass: process.env.STRIPE_PRICE_EVENT_PASS || '',
     },
   },
 
