@@ -118,6 +118,16 @@ export interface SubscriptionInfo {
     minutesLimit: number;
     percentUsed: number;
   } | null;
+  demo?: { remaining: number; used: number };
+  eventPasses?: Array<{
+    id: string;
+    minutesRemaining: number;
+    minutesTotal: number;
+    purchasedAt: number;
+    status: string;
+  }>;
+  activeSource?: 'subscription' | 'event_pass' | 'demo' | null;
+  activeSourceMinutes?: number;
 }
 
 export interface BroadcastLog {

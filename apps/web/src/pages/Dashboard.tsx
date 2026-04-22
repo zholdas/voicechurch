@@ -273,6 +273,42 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Minutes Card */}
+        {!isLoadingBilling && subscription && (
+          <div className={`rounded-xl p-4 mb-6 flex items-center justify-between ${
+            subscription.activeSource === 'demo' ? 'bg-blue-50 border border-blue-200' :
+            subscription.activeSource === 'event_pass' ? 'bg-amber-50 border border-amber-200' :
+            subscription.activeSource === 'subscription' ? 'bg-green-50 border border-green-200' :
+            'bg-red-50 border border-red-200'
+          }`}>
+            <div>
+              <span className="font-medium text-gray-900">
+                {subscription.activeSource === 'demo' ? 'Free Demo' :
+                 subscription.activeSource === 'event_pass' ? 'Event Pass' :
+                 subscription.activeSource === 'subscription' ? (subscription.plan?.name || 'Subscription') :
+                 'No minutes remaining'}
+              </span>
+              {subscription.activeSource ? (
+                <span className="text-gray-600 ml-2">
+                  {subscription.activeSourceMinutes} minutes remaining
+                </span>
+              ) : (
+                <span className="text-red-600 ml-2">
+                  Upgrade to broadcast
+                </span>
+              )}
+            </div>
+            {!subscription.activeSource && (
+              <Link
+                to="/pricing"
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                View Plans
+              </Link>
+            )}
+          </div>
+        )}
+
         {/* Subscription Card */}
         {billingConfigured && !isLoadingBilling && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
