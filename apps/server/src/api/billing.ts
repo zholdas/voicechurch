@@ -18,6 +18,7 @@ import {
 } from '../db/index.js';
 import {
   createCheckoutSession,
+  createEventPassCheckout,
   createPortalSession,
   handleWebhook,
 } from '../services/stripe.js';
@@ -172,6 +173,23 @@ router.post('/checkout', requireAuth, async (req, res) => {
     res.json({ checkoutUrl, withTrial: canUseTrial });
   } catch (error: any) {
     console.error('[Billing] Checkout error:', error);
+    res.status(500).json({ error: error.message || 'Failed to create checkout session' });
+  }
+});
+
+// Buy Event Pass (one-time payment)
+router.post('/event-pass', requireAuth, async (req, res) => {
+  if (!isStripeConfigured()) {
+    return res.status(503).json({ error: 'Billing not configured' });
+  }
+
+  const userId = req.user!.id;
+
+  try {
+    const checkoutUrl = await createEventPassCheckout(userId, req.user!.email);
+    res.json({ checkoutUrl });
+  } catch (error: any) {
+    console.error('[Billing] Event Pass checkout error:', error);
     res.status(500).json({ error: error.message || 'Failed to create checkout session' });
   }
 });

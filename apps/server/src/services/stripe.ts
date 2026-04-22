@@ -8,6 +8,7 @@ import {
   updateUserStripeCustomerId,
   getUserByStripeCustomerId,
   markTrialUsed,
+  createOneTimePass,
   type BillingPeriod,
 } from '../db/index.js';
 
@@ -83,6 +84,37 @@ export async function createCheckoutSession(
   return session.url;
 }
 
+// Create a Checkout Session for Event Pass (one-time payment)
+export async function createEventPassCheckout(
+  userId: string,
+  email: string
+): Promise<string> {
+  const stripeClient = getStripe();
+  const priceId = config.stripe.prices.eventPass;
+
+  if (!priceId) {
+    throw new Error('Event Pass price not configured');
+  }
+
+  const session = await stripeClient.checkout.sessions.create({
+    mode: 'payment',
+    customer_email: email,
+    line_items: [{ price: priceId, quantity: 1 }],
+    success_url: `${config.appUrl}/dashboard?purchase=success`,
+    cancel_url: `${config.appUrl}/pricing?purchase=canceled`,
+    metadata: {
+      userId,
+      type: 'event_pass',
+    },
+  });
+
+  if (!session.url) {
+    throw new Error('Failed to create checkout session');
+  }
+
+  return session.url;
+}
+
 // Create a Customer Portal session for managing subscription
 export async function createPortalSession(stripeCustomerId: string): Promise<string> {
   const stripeClient = getStripe();
@@ -131,7 +163,26 @@ export async function handleWebhook(body: Buffer, signature: string): Promise<vo
 
 // Handle successful checkout
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
-  const { userId, planId, billingPeriod, isTrial } = session.metadata || {};
+  const metadata = session.metadata || {};
+
+  // Handle Event Pass (one-time payment)
+  if (metadata.type === 'event_pass' && metadata.userId) {
+    const stripeCustomerId = session.customer as string;
+    if (stripeCustomerId) {
+      updateUserStripeCustomerId(metadata.userId, stripeCustomerId);
+    }
+    createOneTimePass({
+      userId: metadata.userId,
+      stripePaymentId: session.payment_intent as string,
+      minutesTotal: 120,
+      maxListeners: 100,
+    });
+    console.log(`[Stripe] Created Event Pass for user ${metadata.userId}`);
+    return;
+  }
+
+  // Handle subscription checkout
+  const { userId, planId, billingPeriod, isTrial } = metadata;
 
   if (!userId || !planId || !billingPeriod) {
     console.error('[Stripe] Missing metadata in checkout session');

@@ -161,6 +161,12 @@ export const billingApi = {
       body: JSON.stringify({ planId, billingPeriod }),
     }),
 
+  // Buy Event Pass (one-time payment)
+  buyEventPass: () =>
+    fetchApi<{ checkoutUrl: string }>('/api/billing/event-pass', {
+      method: 'POST',
+    }),
+
   // Create portal session for managing subscription
   createPortal: () =>
     fetchApi<{ portalUrl: string }>('/api/billing/portal', {

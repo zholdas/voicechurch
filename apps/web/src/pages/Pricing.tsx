@@ -139,30 +139,89 @@ export default function Pricing() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-12">
-        {/* Trial banner */}
-        {canStartTrial && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-8 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="text-lg font-semibold text-green-800">60-Day Free Trial</span>
-            </div>
-            <p className="text-green-700">
-              Try any plan free for 60 days. No charge until your trial ends. Cancel anytime.
-            </p>
-          </div>
-        )}
-
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Simple, transparent pricing
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Choose the plan that fits your organization's needs. All plans include real-time speech translation.
+            Choose the plan that fits your needs. All plans include real-time speech translation with full features.
           </p>
         </div>
+
+        {/* Free Demo + Event Pass */}
+        <div className="grid md:grid-cols-2 gap-6 mb-12">
+          {/* Free Demo */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">🎯</span>
+              <h3 className="text-xl font-bold text-gray-900">Free Demo</h3>
+            </div>
+            <p className="text-gray-600 mb-4">Try WordBeacon with all features included</p>
+            <div className="text-3xl font-bold text-gray-900 mb-1">Free</div>
+            <p className="text-sm text-gray-500 mb-4">20 minutes per account • Up to 50 listeners</p>
+            <ul className="text-sm text-gray-600 space-y-1 mb-6">
+              <li>✓ Real-time translation</li>
+              <li>✓ Audio recording</li>
+              <li>✓ AI summaries & transcripts</li>
+              <li>✓ All languages</li>
+            </ul>
+            {isAuthenticated ? (
+              <Link
+                to="/dashboard"
+                className="block w-full text-center py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="block w-full text-center py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+              >
+                Try for Free
+              </Link>
+            )}
+          </div>
+
+          {/* Event Pass */}
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">🎟️</span>
+              <h3 className="text-xl font-bold text-gray-900">Event Pass</h3>
+            </div>
+            <p className="text-gray-600 mb-4">One-time purchase for a single event</p>
+            <div className="text-3xl font-bold text-gray-900 mb-1">$14.99</div>
+            <p className="text-sm text-gray-500 mb-4">2 hours • Up to 100 listeners • Never expires</p>
+            <ul className="text-sm text-gray-600 space-y-1 mb-6">
+              <li>✓ All features included</li>
+              <li>✓ Audio recording & transcripts</li>
+              <li>✓ AI summaries</li>
+              <li>✓ No subscription needed</li>
+            </ul>
+            <button
+              onClick={async () => {
+                if (!isAuthenticated) { navigate('/login'); return; }
+                try {
+                  const { checkoutUrl } = await billingApi.buyEventPass();
+                  window.location.href = checkoutUrl;
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to start checkout');
+                }
+              }}
+              className="w-full py-2.5 px-4 bg-amber-600 text-white rounded-lg hover:bg-amber-700 font-medium transition-colors"
+            >
+              Buy Event Pass
+            </button>
+          </div>
+        </div>
+
+        {/* Trial banner */}
+        {canStartTrial && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-8 text-center">
+            <span className="text-green-800 font-medium">60-Day Free Trial</span>
+            <span className="text-green-700 ml-2">on all subscription plans. No charge until your trial ends.</span>
+          </div>
+        )}
 
         {/* Billing toggle */}
         <div className="flex justify-center mb-10">
