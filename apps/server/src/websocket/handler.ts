@@ -266,6 +266,18 @@ function handleEndBroadcast(ws: ExtendedWebSocket): void {
 }
 
 function handleTranscriptResult(roomId: string, result: TranscriptResult): void {
+  // Always send source text to broadcaster for live transcript monitor
+  const room = getRoom(roomId);
+  if (room?.broadcaster && room.broadcaster.readyState === room.broadcaster.OPEN) {
+    room.broadcaster.send(JSON.stringify({
+      type: 'transcript',
+      source: result.source,
+      translated: result.source,
+      isFinal: result.isFinal,
+      timestamp: result.timestamp,
+    }));
+  }
+
   if (result.translations.size > 0) {
     // Has translations — send personalized messages per language
     const messagesMap = new Map<LanguageCode, ServerMessage>();
@@ -286,7 +298,7 @@ function handleTranscriptResult(roomId: string, result: TranscriptResult): void 
       recorder.addTranscript(roomId, result.source, result.translations);
     }
   } else {
-    // No translations (interim source text) — broadcast to all
+    // No translations (interim source text) — broadcast to all listeners
     broadcastToListeners(roomId, {
       type: 'transcript',
       source: result.source,

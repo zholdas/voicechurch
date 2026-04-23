@@ -92,7 +92,7 @@ export type ServerMessage =
       direction?: TranslationDirection;
     }
   | { type: 'transcript'; source: string; translated: string; isFinal: boolean; timestamp: number; audio?: string }
-  | { type: 'listener_count'; count: number }
+  | { type: 'listener_count'; count: number; breakdown?: Record<string, number> }
   | { type: 'broadcast_started' }
   | { type: 'broadcast_ended' }
   | { type: 'error'; code: string; message: string }

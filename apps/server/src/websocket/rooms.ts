@@ -396,26 +396,46 @@ export function sendToListenersByLanguage(
   }
 }
 
+export function getListenerBreakdown(roomId: string): Record<string, number> {
+  const room = rooms.get(roomId);
+  if (!room) return {};
+
+  const breakdown: Record<string, number> = {};
+  for (const listener of room.listeners) {
+    if (listener.readyState === listener.OPEN && listener.targetLanguage) {
+      breakdown[listener.targetLanguage] = (breakdown[listener.targetLanguage] || 0) + 1;
+    }
+  }
+  return breakdown;
+}
+
 export function notifyListenerCount(roomId: string): void {
   const room = rooms.get(roomId);
   if (!room) return;
 
-  const message: ServerMessage = {
+  const breakdown = getListenerBreakdown(roomId);
+
+  // Broadcaster gets full breakdown
+  const broadcasterMessage: ServerMessage = {
+    type: 'listener_count',
+    count: room.listeners.size,
+    breakdown,
+  };
+
+  if (room.broadcaster && room.broadcaster.readyState === room.broadcaster.OPEN) {
+    room.broadcaster.send(JSON.stringify(broadcasterMessage));
+  }
+
+  // Listeners get just the count
+  const listenerMessage: ServerMessage = {
     type: 'listener_count',
     count: room.listeners.size,
   };
+  const listenerData = JSON.stringify(listenerMessage);
 
-  const data = JSON.stringify(message);
-
-  // Notify broadcaster
-  if (room.broadcaster && room.broadcaster.readyState === room.broadcaster.OPEN) {
-    room.broadcaster.send(data);
-  }
-
-  // Notify all listeners
   for (const listener of room.listeners) {
     if (listener.readyState === listener.OPEN) {
-      listener.send(data);
+      listener.send(listenerData);
     }
   }
 }

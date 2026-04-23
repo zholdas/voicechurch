@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAudioCapture } from '../hooks/useAudioCapture';
+import { useTranscript } from '../hooks/useTranscript';
 import ConnectionStatus from '../components/ConnectionStatus';
 import ShareLink from '../components/ShareLink';
 import AudioCapture from '../components/AudioCapture';
@@ -28,6 +29,7 @@ export default function Broadcast() {
   const [sourceLanguage, setSourceLanguage] = useState<LanguageCode>(paramSourceLang || 'es');
   const [targetLanguage, setTargetLanguage] = useState<LanguageCode>(paramTargetLang || 'en');
   const [listenerCount, setListenerCount] = useState(0);
+  const [listenerBreakdown, setListenerBreakdown] = useState<Record<string, number>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [roomReady, setRoomReady] = useState(false);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
@@ -40,6 +42,9 @@ export default function Broadcast() {
   const [minutesRemaining, setMinutesRemaining] = useState<number | null>(null);
   const [usageWarning, setUsageWarning] = useState<number | null>(null);
   const [broadcastStopped, setBroadcastStopped] = useState<string | null>(null);
+
+  // Live transcript for broadcaster
+  const { entries: transcriptEntries, addTranscript } = useTranscript();
 
   const handleMessage = useCallback((message: ServerMessage) => {
     switch (message.type) {
@@ -63,6 +68,10 @@ export default function Broadcast() {
         break;
       case 'listener_count':
         setListenerCount(message.count);
+        if (message.breakdown) setListenerBreakdown(message.breakdown);
+        break;
+      case 'transcript':
+        addTranscript(message.source, message.translated, message.isFinal, message.timestamp);
         break;
       case 'error':
         setErrorMessage(message.message);
@@ -73,7 +82,6 @@ export default function Broadcast() {
         break;
       case 'broadcast_stopped':
         setBroadcastStopped(message.reason);
-        // stopRecording will be called via useEffect when broadcastStopped changes
         break;
       case 'source_language_changed':
         setSourceLanguage(message.sourceLanguage);
@@ -82,7 +90,7 @@ export default function Broadcast() {
         setSourceLanguageMode(message.mode);
         break;
     }
-  }, []);
+  }, [addTranscript]);
 
   const { status, connect, send, sendBinary, isConnected } = useWebSocket({
     onMessage: handleMessage,
@@ -291,6 +299,19 @@ export default function Broadcast() {
               <strong>{listenerCount}</strong> listener{listenerCount !== 1 ? 's' : ''} connected
             </span>
           </div>
+          {/* Language breakdown */}
+          {Object.keys(listenerBreakdown).length > 0 && (
+            <div className="flex flex-wrap gap-2 justify-center mt-2">
+              {Object.entries(listenerBreakdown).map(([lang, count]) => (
+                <span
+                  key={lang}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs font-medium"
+                >
+                  {count} {getLanguageName(lang as LanguageCode)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Broadcast controls */}
@@ -379,6 +400,29 @@ export default function Broadcast() {
             </div>
           )}
         </div>
+
+        {/* Live Transcript Monitor */}
+        {isRecording && transcriptEntries.length > 0 && (
+          <div className="mt-6 bg-gray-900 rounded-xl shadow-lg overflow-hidden">
+            <div className="px-4 py-2 bg-gray-800 flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Live Transcript</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                <span className="text-xs text-gray-400">Monitoring</span>
+              </span>
+            </div>
+            <div className="p-4 max-h-48 overflow-y-auto" style={{ fontSize: '14px', lineHeight: 1.6 }}>
+              {transcriptEntries.map((entry) => (
+                <span
+                  key={entry.id}
+                  className={`inline ${entry.isFinal ? 'text-gray-200' : 'text-gray-500 italic'}`}
+                >
+                  {entry.translated}{' '}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Instructions */}
         <div className="mt-8 bg-white rounded-xl shadow p-6">
