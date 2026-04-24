@@ -319,13 +319,11 @@ function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
 
   const pipeline = getPipeline();
 
-  // Create pipeline connection lazily — wait until at least one listener is present
+  // Create pipeline connection lazily on first audio chunk
+  // Starts even without listeners so broadcaster gets live transcript monitor
   if (!room.pipelineConnection) {
     const targetLanguages = getUniqueListenerLanguages(ws.roomId);
-    if (targetLanguages.length === 0) {
-      return;
-    }
-    console.log(`Starting pipeline for room: ${ws.roomId} (targets: ${targetLanguages.join(', ')})`);
+    console.log(`Starting pipeline for room: ${ws.roomId} (targets: ${targetLanguages.length > 0 ? targetLanguages.join(', ') : 'none yet'})`);
     pipeline.createConnection(ws.roomId, room.sourceLanguage, getUniqueListenerLanguages, handleTranscriptResult);
     setPipelineConnection(ws.roomId, true);
   }
