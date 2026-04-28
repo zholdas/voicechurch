@@ -92,6 +92,10 @@ function handleMessage(ws: ExtendedWebSocket, message: ClientMessage): void {
       handleChangeSourceLanguage(ws, message.sourceLanguage);
       break;
 
+    case 'change_source_language_mode':
+      handleChangeSourceLanguageMode(ws, message.mode);
+      break;
+
     case 'ping':
       send(ws, { type: 'pong' });
       break;
@@ -252,6 +256,25 @@ function handleChangeSourceLanguage(ws: ExtendedWebSocket, newLanguage: Language
   broadcastToListeners(ws.roomId, notification);
 
   console.log(`Source language changed for room ${ws.roomId}: ${oldLanguage} → ${newLanguage}`);
+}
+
+function handleChangeSourceLanguageMode(ws: ExtendedWebSocket, mode: 'auto' | 'manual'): void {
+  if (ws.role !== 'broadcaster' || !ws.roomId) {
+    sendError(ws, 'NOT_BROADCASTER', 'Only broadcaster can change language mode');
+    return;
+  }
+
+  // Update server config for this session
+  config.sourceLanguageMode = mode;
+
+  // Close existing pipeline so it recreates with new mode
+  getPipeline().closeConnection(ws.roomId);
+  setPipelineConnection(ws.roomId, false);
+
+  // Notify broadcaster
+  send(ws, { type: 'source_language_mode', mode });
+
+  console.log(`Source language mode changed for room ${ws.roomId}: ${mode}`);
 }
 
 function handleEndBroadcast(ws: ExtendedWebSocket): void {

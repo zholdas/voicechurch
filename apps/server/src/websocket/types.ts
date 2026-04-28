@@ -27,6 +27,7 @@ export type ClientMessage =
     }
   | { type: 'end_broadcast' }
   | { type: 'change_source_language'; sourceLanguage: LanguageCode }
+  | { type: 'change_source_language_mode'; mode: 'auto' | 'manual' }
   | { type: 'ping' };
 
 // Server -> Client messages

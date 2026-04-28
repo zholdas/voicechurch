@@ -242,30 +242,44 @@ export default function Broadcast() {
           {roomName && (
             <h2 className="text-2xl font-bold text-gray-900">{roomName}</h2>
           )}
-          {sourceLanguageMode === 'auto' ? (
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium mt-2 bg-purple-100 text-purple-700">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-2 mt-2 flex-wrap justify-center">
+            {/* Auto/Manual toggle */}
+            <button
+              onClick={() => {
+                const newMode = sourceLanguageMode === 'auto' ? 'manual' : 'auto';
+                setSourceLanguageMode(newMode);
+                send({ type: 'change_source_language_mode', mode: newMode });
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                sourceLanguageMode === 'auto'
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
               </svg>
-              Auto-detect language
-            </div>
-          ) : (
-            <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium mt-2 bg-gradient-to-r from-blue-100 to-green-100 text-gray-700">
-              <select
-                data-language-select
-                value={sourceLanguage}
-                onChange={(e) => handleSourceLanguageChange(e.target.value as LanguageCode)}
-                className="bg-transparent font-medium border-none focus:outline-none cursor-pointer"
-              >
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
-              <span>→ {getLanguageName(targetLanguage)}</span>
-            </div>
-          )}
+              Auto-detect
+            </button>
+
+            {/* Language selector (visible in manual mode) */}
+            {sourceLanguageMode === 'manual' && (
+              <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-gradient-to-r from-blue-100 to-green-100 text-gray-700">
+                <select
+                  data-language-select
+                  value={sourceLanguage}
+                  onChange={(e) => handleSourceLanguageChange(e.target.value as LanguageCode)}
+                  className="bg-transparent font-medium border-none focus:outline-none cursor-pointer"
+                >
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <option key={lang.code} value={lang.code}>
+                      {lang.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Share link */}
