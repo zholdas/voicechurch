@@ -13,19 +13,19 @@ export interface LanguageInfo {
 
 // All supported languages
 export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
-  { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
   { code: 'zh', name: 'Chinese', nativeName: '中文' },
+  { code: 'da', name: 'Danish', nativeName: 'Dansk' },
+  { code: 'en', name: 'English', nativeName: 'English' },
   { code: 'fr', name: 'French', nativeName: 'Français' },
   { code: 'de', name: 'German', nativeName: 'Deutsch' },
-  { code: 'da', name: 'Danish', nativeName: 'Dansk' },
   { code: 'it', name: 'Italian', nativeName: 'Italiano' },
-  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
   { code: 'ja', name: 'Japanese', nativeName: '日本語' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어' },
   { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
   { code: 'ru', name: 'Russian', nativeName: 'Русский' },
-  { code: 'ko', name: 'Korean', nativeName: '한국어' },
-  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español' },
+  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
 ];
 
 // Helper to get language info
