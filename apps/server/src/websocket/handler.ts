@@ -332,6 +332,9 @@ function handleTranscriptResult(roomId: string, result: TranscriptResult): void 
   }
 }
 
+// Log first audio chunk per room
+const audioStarted = new Set<string>();
+
 function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
   if (ws.role !== 'broadcaster' || !ws.roomId) {
     return;
@@ -339,6 +342,11 @@ function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
 
   const room = getRoom(ws.roomId);
   if (!room) return;
+
+  if (!audioStarted.has(ws.roomId)) {
+    audioStarted.add(ws.roomId);
+    console.log(`[audio] First chunk for room ${ws.roomId} (${data.length} bytes, pipeline: ${room.pipelineConnection})`);
+  }
 
   const pipeline = getPipeline();
 
