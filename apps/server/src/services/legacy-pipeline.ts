@@ -19,6 +19,8 @@ interface ConnectionState {
   sourceLanguage: LanguageCode;
   getTargetLanguages: TargetLanguagesProvider;
   onResult: TranscriptCallback;
+  lastTranscriptAt: number;
+  silenceTimer: NodeJS.Timeout | null;
 }
 
 // Per-room connection state
@@ -46,11 +48,30 @@ export class LegacyPipeline implements TranslationPipeline {
       sample_rate: 16000,
     });
 
-    connections.set(roomId, { connection, sourceLanguage, getTargetLanguages: targetLanguages, onResult });
+    connections.set(roomId, { connection, sourceLanguage, getTargetLanguages: targetLanguages, onResult, lastTranscriptAt: Date.now(), silenceTimer: null });
 
     connection.on(LiveTranscriptionEvents.Open, () => {
       console.log(`Deepgram connection opened for room: ${roomId} (language: ${language})`);
     });
+
+    // In auto mode: restart Deepgram if no transcripts for 5 seconds (language switch stall)
+    if (config.sourceLanguageMode === 'auto') {
+      const silenceTimer = setInterval(() => {
+        const state = connections.get(roomId);
+        if (!state) { clearInterval(silenceTimer); return; }
+        const silenceMs = Date.now() - state.lastTranscriptAt;
+        if (silenceMs > 5000) {
+          console.log(`[auto-detect] No transcripts for ${Math.round(silenceMs / 1000)}s in room ${roomId}, reconnecting Deepgram`);
+          state.lastTranscriptAt = Date.now(); // prevent repeated reconnects
+          // Close and recreate
+          try { (state.connection as any).finish(); } catch {}
+          connections.delete(roomId);
+          this.createConnection(roomId, sourceLanguage, targetLanguages, onResult);
+        }
+      }, 3000);
+      const state = connections.get(roomId);
+      if (state) state.silenceTimer = silenceTimer;
+    }
 
     connection.on(LiveTranscriptionEvents.Transcript, async (data) => {
       const transcript = data.channel?.alternatives?.[0]?.transcript;
@@ -60,6 +81,9 @@ export class LegacyPipeline implements TranslationPipeline {
       const timestamp = Date.now();
       const state = connections.get(roomId);
       if (!state) return;
+
+      // Track last transcript time for silence detection
+      state.lastTranscriptAt = timestamp;
 
       // Determine effective source language (auto-detect or fixed)
       let effectiveSourceLang = state.sourceLanguage;
@@ -151,6 +175,7 @@ export class LegacyPipeline implements TranslationPipeline {
   closeConnection(roomId: string): void {
     const state = connections.get(roomId);
     if (state) {
+      if (state.silenceTimer) clearInterval(state.silenceTimer);
       try {
         (state.connection as any).finish();
       } catch (error) {
