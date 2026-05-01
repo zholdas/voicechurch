@@ -50,6 +50,9 @@ export function handleConnection(ws: ExtendedWebSocket): void {
   ws.on('message', (data, isBinary) => {
     // Handle binary audio data
     if (isBinary) {
+      if (!ws.role) {
+        console.log(`[ws] Binary data received but role not set yet (${(data as Buffer).length} bytes)`);
+      }
       handleAudioData(ws, data as Buffer);
       return;
     }
@@ -336,7 +339,11 @@ function handleTranscriptResult(roomId: string, result: TranscriptResult): void 
 const audioStarted = new Set<string>();
 
 function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
-  if (ws.role !== 'broadcaster' || !ws.roomId) {
+  // If role not set yet (join_room not received), try to find room by ws
+  if (!ws.role || !ws.roomId) {
+    return;
+  }
+  if (ws.role !== 'broadcaster') {
     return;
   }
 
