@@ -150,16 +150,16 @@ export default function PricingSection() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => console.log(`Get Started: ${plan.name}`)}
-                className={`w-full py-3 rounded-lg font-medium transition-colors ${
+              <a
+                href="/pricing"
+                className={`block w-full py-3 rounded-lg font-medium transition-colors text-center ${
                   plan.highlighted
                     ? 'bg-amber-500 text-white hover:bg-amber-600'
                     : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
                 }`}
               >
                 Get Started →
-              </button>
+              </a>
               <p className={`text-xs mt-4 text-center ${plan.highlighted ? 'text-slate-400' : 'text-gray-500'}`}>
                 Recommended for churches up to {plan.recommended}
               </p>
@@ -174,12 +174,12 @@ export default function PricingSection() {
             Have a very large church, network, or denomination? Contact us for a custom plan
             with higher listener limits, more languages, and tailored support.
           </p>
-          <button
-            onClick={() => console.log('Contact Us clicked')}
-            className="px-6 py-3 bg-slate-800 text-white font-medium rounded-lg hover:bg-slate-700 transition-colors"
+          <a
+            href="mailto:support@wordbeacon.com"
+            className="inline-block px-6 py-3 bg-slate-800 text-white font-medium rounded-lg hover:bg-slate-700 transition-colors"
           >
             Contact Us
-          </button>
+          </a>
         </div>
 
         {/* Explanation */}
