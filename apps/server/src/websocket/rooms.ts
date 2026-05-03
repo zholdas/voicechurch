@@ -297,6 +297,15 @@ export function addListener(
   const room = rooms.get(roomId);
   if (!room) return false;
 
+  // Check listener limit based on broadcaster's plan
+  if (room.broadcaster?.userId) {
+    const source = db.getActiveUsageSource(room.broadcaster.userId);
+    const maxListeners = source?.maxListeners ?? 50;
+    if (room.listeners.size >= maxListeners) {
+      return false;
+    }
+  }
+
   room.listeners.add(ws);
   ws.roomId = roomId;
   ws.role = 'listener';

@@ -32,6 +32,7 @@ export default function Broadcast() {
   const [listenerBreakdown, setListenerBreakdown] = useState<Record<string, number>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [roomReady, setRoomReady] = useState(false);
+  const [pendingStart, setPendingStart] = useState(false);
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
 
   // Language mode
@@ -167,8 +168,20 @@ export default function Broadcast() {
     [send]
   );
 
+  // Start recording only after room is confirmed joined
+  useEffect(() => {
+    if (pendingStart && roomReady) {
+      setPendingStart(false);
+      startRecording();
+    }
+  }, [pendingStart, roomReady, startRecording]);
+
   const handleStartBroadcast = () => {
-    startRecording();
+    if (roomReady) {
+      startRecording();
+    } else {
+      setPendingStart(true);
+    }
   };
 
   const handleStopBroadcast = () => {

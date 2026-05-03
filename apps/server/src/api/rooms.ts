@@ -578,4 +578,80 @@ router.get('/transcripts/by-slug/:slug', (req: Request, res: Response) => {
   });
 });
 
+// GET /api/rooms/transcripts/:id/download?format=txt|json — download transcript
+router.get('/transcripts/:id/download', (req: Request, res: Response) => {
+  const transcript = db.getTranscriptById(req.params.id);
+  if (!transcript) {
+    return res.status(404).json({ error: 'Transcript not found' });
+  }
+
+  // Check access (same logic as by-slug)
+  if (transcript.access === 'owner') {
+    const user = req.user as any;
+    if (!user) return res.status(401).json({ error: 'Authentication required' });
+    const session = db.getSessionById(transcript.sessionId);
+    if (session?.userId !== user.id) return res.status(403).json({ error: 'Access denied' });
+  }
+
+  const format = (req.query.format as string) || 'json';
+  const content = JSON.parse(transcript.content);
+  const session = db.getSessionById(transcript.sessionId);
+  const filename = `${transcript.slug || transcript.id}.${format === 'txt' ? 'txt' : 'json'}`;
+
+  if (format === 'json') {
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.json(content);
+  }
+
+  // Format as plain text
+  let text = '';
+  if (session) {
+    text += `${session.name || 'Transcript'}\n`;
+    if (session.startedAt) {
+      text += `${new Date(session.startedAt * 1000).toLocaleString()}\n`;
+    }
+    if (session.durationMinutes) {
+      text += `Duration: ${session.durationMinutes} minutes\n`;
+    }
+    text += '\n---\n\n';
+  }
+
+  if (transcript.type === 'verbatim' && content.segments) {
+    for (const seg of content.segments) {
+      const time = new Date(seg.timestamp).toISOString().substring(11, 19);
+      text += `[${time}] ${seg.source}\n`;
+      if (seg.translations) {
+        for (const [lang, translated] of Object.entries(seg.translations)) {
+          text += `  [${lang}] ${translated}\n`;
+        }
+      }
+      text += '\n';
+    }
+  } else if (transcript.type === 'summary' || transcript.type === 'meeting_minutes') {
+    if (content.summary) text += `Summary:\n${content.summary}\n\n`;
+    if (content.agenda?.length) {
+      text += `Agenda:\n${content.agenda.map((a: string) => `- ${a}`).join('\n')}\n\n`;
+    }
+    if (content.actionItems?.length) {
+      text += `Action Items:\n${content.actionItems.map((a: string) => `- ${a}`).join('\n')}\n\n`;
+    }
+    if (content.keyDecisions?.length) {
+      text += `Key Decisions:\n${content.keyDecisions.map((d: string) => `- ${d}`).join('\n')}\n\n`;
+    }
+    if (content.attendeeActions?.length) {
+      text += `Commitments:\n${content.attendeeActions.map((a: any) => `- ${a.person}: ${a.action}`).join('\n')}\n\n`;
+    }
+    if (content.nextSteps?.length) {
+      text += `Next Steps:\n${content.nextSteps.map((s: string) => `- ${s}`).join('\n')}\n\n`;
+    }
+  } else if (transcript.type === 'recap') {
+    text += content.recap || content.summary || '';
+  }
+
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(text);
+});
+
 export { router as roomsRouter };

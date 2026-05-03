@@ -6,7 +6,7 @@ import {
   updateSubscription,
   getPlanById,
   updateUserStripeCustomerId,
-  getUserByStripeCustomerId,
+  getUserById,
   markTrialUsed,
   createOneTimePass,
   type BillingPeriod,
@@ -292,14 +292,13 @@ async function handlePaymentFailed(invoice: Stripe.Invoice): Promise<void> {
 export async function getOrCreateStripeCustomer(userId: string, email: string, name: string): Promise<string> {
   const stripeClient = getStripe();
 
-  // Check if user already has a Stripe customer ID
-  const user = getUserByStripeCustomerId(userId);
-  if (user) {
-    // User found by their Stripe customer ID, but we need to check by userId
-    // This is a bit confusing - let's fix the logic
+  // Check if user already has a Stripe customer ID in our DB
+  const user = getUserById(userId);
+  if (user?.stripeCustomerId) {
+    return user.stripeCustomerId;
   }
 
-  // Create new customer
+  // Create new customer in Stripe
   const customer = await stripeClient.customers.create({
     email,
     name,

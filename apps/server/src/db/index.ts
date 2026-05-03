@@ -309,6 +309,7 @@ export interface DbUser {
   email: string;
   name: string;
   picture: string | null;
+  stripeCustomerId: string | null;
   createdAt: Date;
 }
 
@@ -410,6 +411,7 @@ function mapUserRow(row: any): DbUser {
     email: row.email,
     name: row.name,
     picture: row.picture,
+    stripeCustomerId: row.stripe_customer_id || null,
     createdAt: new Date(row.created_at),
   };
 }

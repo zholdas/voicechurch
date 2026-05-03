@@ -201,7 +201,11 @@ function handleJoinRoom(
     const listenerLang = (targetLanguage && isValidLanguageCode(targetLanguage))
       ? targetLanguage
       : room.targetLanguage;
-    addListener(room.id, ws, listenerLang);
+    const added = addListener(room.id, ws, listenerLang);
+    if (!added) {
+      sendError(ws, 'ROOM_FULL', 'This room has reached its listener limit');
+      return;
+    }
   }
 
   const direction = languagesToDirection(room.sourceLanguage, room.targetLanguage);
@@ -339,8 +343,9 @@ function handleTranscriptResult(roomId: string, result: TranscriptResult): void 
 const audioStarted = new Set<string>();
 
 function handleAudioData(ws: ExtendedWebSocket, data: Buffer): void {
-  // If role not set yet (join_room not received), try to find room by ws
+  // If role not set yet (join_room not received), drop the chunk with a warning
   if (!ws.role || !ws.roomId) {
+    console.warn(`[audio] Dropped ${data.length} bytes — role/roomId not set yet`);
     return;
   }
   if (ws.role !== 'broadcaster') {

@@ -241,4 +241,7 @@ export const sessionsApi = {
 
   getTranscript: (slug: string) =>
     fetchApi<TranscriptContent>(`/api/transcripts/${slug}`),
+
+  getDownloadUrl: (id: string, format: 'txt' | 'json') =>
+    `${API_URL}/api/rooms/transcripts/${id}/download?format=${format}`,
 };

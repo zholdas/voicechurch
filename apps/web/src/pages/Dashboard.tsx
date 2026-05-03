@@ -1058,22 +1058,34 @@ export default function Dashboard() {
                                   </a>
                                 )}
                                 {session.transcripts.map((t) => (
-                                  <a
-                                    key={t.id}
-                                    href={`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/transcripts/${t.slug}`}
-                                    className={`text-xs px-2 py-1 rounded ${
-                                      t.type === 'verbatim'
-                                        ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
-                                        : 'text-purple-600 bg-purple-50 hover:bg-purple-100'
-                                    }`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    {t.type === 'verbatim' ? 'Verbatim'
-                                      : t.type === 'summary' ? `Summary (${t.language})`
-                                      : t.type === 'meeting_minutes' ? `Minutes (${t.language})`
-                                      : `Recap (${t.language})`}
-                                  </a>
+                                  <span key={t.id} className="inline-flex items-center gap-1">
+                                    <a
+                                      href={`/t/${t.slug}`}
+                                      className={`text-xs px-2 py-1 rounded ${
+                                        t.type === 'verbatim'
+                                          ? 'text-gray-600 bg-gray-100 hover:bg-gray-200'
+                                          : 'text-purple-600 bg-purple-50 hover:bg-purple-100'
+                                      }`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      {t.type === 'verbatim' ? 'Verbatim'
+                                        : t.type === 'summary' ? `Summary (${t.language})`
+                                        : t.type === 'meeting_minutes' ? `Minutes (${t.language})`
+                                        : `Recap (${t.language})`}
+                                    </a>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(`${window.location.origin}/t/${t.slug}`);
+                                      }}
+                                      className="text-xs text-gray-400 hover:text-blue-600 p-0.5"
+                                      title="Copy share link"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                      </svg>
+                                    </button>
+                                  </span>
                                 ))}
                               </div>
                             )}
