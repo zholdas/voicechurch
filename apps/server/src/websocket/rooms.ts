@@ -233,18 +233,24 @@ export function updateRoomSourceLanguage(roomId: string, sourceLanguage: Languag
 // Delete a persistent room
 export function deletePersistentRoom(roomId: string, ownerId: string): boolean {
   const room = rooms.get(roomId);
-  if (!room || !room.isPersistent || room.ownerId !== ownerId) {
-    return false;
+  if (room) {
+    if (!room.isPersistent || room.ownerId !== ownerId) {
+      return false;
+    }
+    // Notify listeners
+    broadcastToListeners(roomId, { type: 'broadcast_ended' });
+    // Delete from memory
+    rooms.delete(roomId);
+  } else {
+    // Room not in memory (server restarted) — check DB directly
+    const dbRoom = db.getRoomById(roomId);
+    if (!dbRoom || dbRoom.ownerId !== ownerId) {
+      return false;
+    }
   }
-
-  // Notify listeners
-  broadcastToListeners(roomId, { type: 'broadcast_ended' });
 
   // Delete from database
   db.deleteRoom(roomId);
-
-  // Delete from memory
-  rooms.delete(roomId);
   console.log(`Persistent room deleted: ${roomId}`);
 
   return true;
