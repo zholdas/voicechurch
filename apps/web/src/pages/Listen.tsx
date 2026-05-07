@@ -186,48 +186,67 @@ export default function Listen() {
 
       {/* Header */}
       <header className="bg-white shadow-sm flex-shrink-0">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/">
-              <img src="/logo.svg" alt="WordBeacon" className="h-6" />
-            </Link>
-            {roomName && (
-              <span className="text-gray-400">|</span>
-            )}
-            {roomName && (
-              <span className="text-gray-700 font-medium">{roomName}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">
-              {listenerCount} listener{listenerCount !== 1 ? 's' : ''}
-            </span>
-            <ConnectionStatus status={status} />
+        {/* Top row: logo + connection status */}
+        <div className="max-w-4xl mx-auto px-4 pt-3 pb-2 flex items-center justify-between">
+          <Link to="/">
+            <img src="/logo.svg" alt="WordBeacon" className="h-7" />
+          </Link>
+          <ConnectionStatus status={status} />
+        </div>
+
+        {/* Room info card */}
+        <div className="max-w-4xl mx-auto px-4 pb-3">
+          <div className="bg-gray-50 rounded-xl px-4 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <div>
+                <div className="text-xs text-gray-500">Room</div>
+                <div className="text-sm font-semibold text-gray-900">{roomName || 'Connecting...'}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <div>
+                <div className="text-xs text-gray-500">Listener{listenerCount !== 1 ? 's' : ''}</div>
+                <div className="text-sm font-semibold text-gray-900">{listenerCount}</div>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Error display */}
       {errorMessage && (
-        <div className="bg-red-50 border-b border-red-200 text-red-700 px-4 py-3 text-center">
+        <div className="bg-red-50 border-b border-red-200 text-red-700 px-4 py-3 text-center text-sm">
           {errorMessage}
         </div>
       )}
 
       {/* Broadcast status */}
       {!broadcastActive && isConnected && (
-        <div className="bg-yellow-50 border-b border-yellow-200 text-yellow-800 px-4 py-3 text-center">
-          Waiting for broadcast to start...
+        <div className="mx-4 mt-3">
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-2.5 rounded-xl text-center text-sm flex items-center justify-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M12 12h.01M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728M8.464 15.536a5 5 0 010-7.072" />
+            </svg>
+            Waiting for broadcast to start...
+          </div>
         </div>
       )}
 
       {broadcastActive && (
-        <div className="bg-green-50 border-b border-green-200 text-green-800 px-4 py-3 text-center flex items-center justify-center gap-2">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-          </span>
-          Live broadcast in progress
+        <div className="mx-4 mt-3">
+          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-2.5 rounded-xl text-center text-sm flex items-center justify-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+            </span>
+            Live broadcast in progress
+          </div>
         </div>
       )}
 
