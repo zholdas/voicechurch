@@ -554,12 +554,16 @@ export function updateRoom(id: string, data: {
 }
 
 export function deleteRoom(id: string): boolean {
-  // Delete cascade: transcripts → sessions → broadcast_logs → room
+  // Delete cascade: transcripts → sessions → transcript_records → broadcast_logs → room
   const sessions = db.prepare('SELECT id FROM sessions WHERE room_id = ?').all(id) as any[];
   for (const session of sessions) {
     db.prepare('DELETE FROM transcripts WHERE session_id = ?').run(session.id);
   }
   db.prepare('DELETE FROM sessions WHERE room_id = ?').run(id);
+  const logs = db.prepare('SELECT id FROM broadcast_logs WHERE room_id = ?').all(id) as any[];
+  for (const log of logs) {
+    db.prepare('DELETE FROM transcript_records WHERE broadcast_log_id = ?').run(log.id);
+  }
   db.prepare('DELETE FROM broadcast_logs WHERE room_id = ?').run(id);
   const result = db.prepare('DELETE FROM rooms WHERE id = ?').run(id);
   return result.changes > 0;
