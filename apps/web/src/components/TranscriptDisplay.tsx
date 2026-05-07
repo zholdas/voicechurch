@@ -38,7 +38,10 @@ export default function TranscriptDisplay({ entries, fontSize }: TranscriptDispl
 
   if (entries.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-400">
+      <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
+        <svg className="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.536 8.464a5 5 0 010 7.072M12 12h.01M18.364 5.636a9 9 0 010 12.728M5.636 18.364a9 9 0 010-12.728M8.464 15.536a5 5 0 010-7.072" />
+        </svg>
         <p className="text-lg">Waiting for broadcast to start...</p>
       </div>
     );
