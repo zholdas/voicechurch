@@ -9,23 +9,24 @@ export interface LanguageInfo {
   code: LanguageCode;
   name: string;
   nativeName: string;
+  flag: string;
 }
 
 // All supported languages
 export const SUPPORTED_LANGUAGES: LanguageInfo[] = [
-  { code: 'ar', name: 'Arabic', nativeName: 'العربية' },
-  { code: 'zh', name: 'Chinese', nativeName: '中文' },
-  { code: 'da', name: 'Danish', nativeName: 'Dansk' },
-  { code: 'en', name: 'English', nativeName: 'English' },
-  { code: 'fr', name: 'French', nativeName: 'Français' },
-  { code: 'de', name: 'German', nativeName: 'Deutsch' },
-  { code: 'it', name: 'Italian', nativeName: 'Italiano' },
-  { code: 'ja', name: 'Japanese', nativeName: '日本語' },
-  { code: 'ko', name: 'Korean', nativeName: '한국어' },
-  { code: 'pt', name: 'Portuguese', nativeName: 'Português' },
-  { code: 'ru', name: 'Russian', nativeName: 'Русский' },
-  { code: 'es', name: 'Spanish', nativeName: 'Español' },
-  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt' },
+  { code: 'ar', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+  { code: 'zh', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'da', name: 'Danish', nativeName: 'Dansk', flag: '🇩🇰' },
+  { code: 'en', name: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { code: 'it', name: 'Italian', nativeName: 'Italiano', flag: '🇮🇹' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: 'Korean', nativeName: '한국어', flag: '🇰🇷' },
+  { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷' },
+  { code: 'ru', name: 'Russian', nativeName: 'Русский', flag: '🇷🇺' },
+  { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'vi', name: 'Vietnamese', nativeName: 'Tiếng Việt', flag: '🇻🇳' },
 ];
 
 // Helper to get language info

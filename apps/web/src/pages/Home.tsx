@@ -127,7 +127,7 @@ export default function Home() {
               >
                 {SUPPORTED_LANGUAGES.map((lang) => (
                   <option key={lang.code} value={lang.code}>
-                    {lang.name} ({lang.nativeName})
+                    {lang.flag} {lang.name} ({lang.nativeName})
                   </option>
                 ))}
               </select>
@@ -144,7 +144,7 @@ export default function Home() {
               >
                 {SUPPORTED_LANGUAGES.map((lang) => (
                   <option key={lang.code} value={lang.code}>
-                    {lang.name} ({lang.nativeName})
+                    {lang.flag} {lang.name} ({lang.nativeName})
                   </option>
                 ))}
               </select>

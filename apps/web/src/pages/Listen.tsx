@@ -175,7 +175,7 @@ export default function Listen() {
                   onClick={() => setSelectedLanguage(lang.code)}
                   className="p-4 border-2 border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition-all text-left"
                 >
-                  <div className="font-medium text-gray-900">{lang.nativeName}</div>
+                  <div className="font-medium text-gray-900">{lang.flag} {lang.nativeName}</div>
                   <div className="text-sm text-gray-500">{lang.name}</div>
                 </button>
               ))}
