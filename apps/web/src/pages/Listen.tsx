@@ -162,21 +162,21 @@ export default function Listen() {
     <div className="listen-container bg-gray-100 flex flex-col">
       {/* Language Selector Modal */}
       {showLanguageSelector && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Select your language</h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-4">
               Choose the language you want to hear the translation in:
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2 overflow-y-auto">
               {SUPPORTED_LANGUAGES.map((lang) => (
                 <button
                   key={lang.code}
                   onClick={() => setSelectedLanguage(lang.code)}
-                  className="p-4 border-2 border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition-all text-left"
+                  className="p-3 border-2 border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition-all text-left"
                 >
                   <div className="font-medium text-gray-900">{lang.flag} {lang.nativeName}</div>
-                  <div className="text-sm text-gray-500">{lang.name}</div>
+                  <div className="text-xs text-gray-500">{lang.name}</div>
                 </button>
               ))}
             </div>
