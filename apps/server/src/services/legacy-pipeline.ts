@@ -103,34 +103,36 @@ export class LegacyPipeline implements TranslationPipeline {
       }
 
       const currentTargets = state.getTargetLanguages(roomId);
-      if (currentTargets.length === 0) return;
 
       if (isFinal) {
         cancelPendingTranslation(roomId);
 
-        const results = await Promise.all(
-          currentTargets.map(async (targetLang) => {
-            const translated = await translate(transcript, effectiveSourceLang, targetLang);
-
-            let audioBase64: string | undefined;
-            if (isGoogleTtsConfigured()) {
-              try {
-                const audioBuffer = await synthesizeSpeech(translated, targetLang);
-                if (audioBuffer) {
-                  audioBase64 = audioBuffer.toString('base64');
-                }
-              } catch (error) {
-                console.error(`TTS error for ${targetLang} in room ${roomId}:`, error);
-              }
-            }
-
-            return { targetLang, translated, audio: audioBase64 };
-          })
-        );
-
         const translations = new Map<LanguageCode, { translated: string; audio?: string }>();
-        for (const { targetLang, translated, audio } of results) {
-          translations.set(targetLang, { translated, audio });
+
+        if (currentTargets.length > 0) {
+          const results = await Promise.all(
+            currentTargets.map(async (targetLang) => {
+              const translated = await translate(transcript, effectiveSourceLang, targetLang);
+
+              let audioBase64: string | undefined;
+              if (isGoogleTtsConfigured()) {
+                try {
+                  const audioBuffer = await synthesizeSpeech(translated, targetLang);
+                  if (audioBuffer) {
+                    audioBase64 = audioBuffer.toString('base64');
+                  }
+                } catch (error) {
+                  console.error(`TTS error for ${targetLang} in room ${roomId}:`, error);
+                }
+              }
+
+              return { targetLang, translated, audio: audioBase64 };
+            })
+          );
+
+          for (const { targetLang, translated, audio } of results) {
+            translations.set(targetLang, { translated, audio });
+          }
         }
 
         onResult(roomId, {
