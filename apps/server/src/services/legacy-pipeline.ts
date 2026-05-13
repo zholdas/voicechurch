@@ -96,6 +96,8 @@ export class LegacyPipeline implements TranslationPipeline {
           if (mapped) {
             effectiveSourceLang = mapped;
             detectedLanguage = mapped;
+          } else {
+            console.warn(`[auto-detect] Unsupported language detected: ${detected}`);
           }
         }
       }
@@ -157,7 +159,11 @@ export class LegacyPipeline implements TranslationPipeline {
 
     connection.on(LiveTranscriptionEvents.Close, () => {
       console.log(`Deepgram connection closed for room: ${roomId}`);
-      connections.delete(roomId);
+      // Only delete if this is still the current connection (not replaced by a new one)
+      const current = connections.get(roomId);
+      if (current && current.connection === connection) {
+        connections.delete(roomId);
+      }
     });
   }
 
@@ -176,12 +182,13 @@ export class LegacyPipeline implements TranslationPipeline {
     const state = connections.get(roomId);
     if (state) {
       if (state.silenceTimer) clearInterval(state.silenceTimer);
+      // Delete from map BEFORE finishing so Close event doesn't remove a new connection
+      connections.delete(roomId);
       try {
         (state.connection as any).finish();
       } catch (error) {
         console.error(`Error closing Deepgram connection for room ${roomId}:`, error);
       }
-      connections.delete(roomId);
     }
     cancelPendingTranslation(roomId);
   }
