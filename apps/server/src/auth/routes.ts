@@ -101,9 +101,12 @@ router.get('/apple', (req, res) => {
     return res.status(503).json({ error: 'Apple Sign-In not configured' });
   }
 
+  const redirectUri = `${config.google.callbackUrl.replace('/google/callback', '/apple/callback')}`;
+  console.log(`[Apple] Starting auth, clientID: ${config.apple.webClientId}, redirectUri: ${redirectUri}`);
+
   const authUrl = appleSignin.getAuthorizationUrl({
     clientID: config.apple.webClientId,
-    redirectUri: `${config.google.callbackUrl.replace('/google/callback', '/apple/callback')}`,
+    redirectUri,
     scope: 'name email',
     state: 'web',
     responseMode: 'form_post',

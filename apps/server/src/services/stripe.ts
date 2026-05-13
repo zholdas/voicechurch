@@ -205,9 +205,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session): Promis
   const stripeClient = getStripe();
   const subscription = await stripeClient.subscriptions.retrieve(stripeSubscriptionId);
 
-  // Access period start/end from the subscription object
-  const periodStart = (subscription as any).current_period_start as number;
-  const periodEnd = (subscription as any).current_period_end as number;
+  // Access period start/end from the subscription object (with fallbacks)
+  const now = Math.floor(Date.now() / 1000);
+  const subData = subscription as any;
+  const periodStart = subData.current_period_start || now;
+  const periodEnd = subData.current_period_end || (now + 30 * 24 * 60 * 60);
 
   // Create subscription in our database
   createSubscription({
