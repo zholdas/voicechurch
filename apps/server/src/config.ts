@@ -26,7 +26,11 @@ export const config = {
   },
 
   apple: {
-    clientId: process.env.APPLE_CLIENT_ID || 'com.voicechurch.app',
+    clientId: process.env.APPLE_CLIENT_ID || 'com.voicechurch.broadcaster',
+    webClientId: process.env.APPLE_WEB_CLIENT_ID || '',
+    teamId: process.env.APPLE_TEAM_ID || '',
+    keyId: process.env.APPLE_KEY_ID || '',
+    privateKey: (process.env.APPLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
   },
 
   deepgram: {

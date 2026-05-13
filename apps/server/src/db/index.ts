@@ -108,10 +108,15 @@ db.exec(`
 
 // Migration: Add apple_id to users
 try {
-  db.exec(`ALTER TABLE users ADD COLUMN apple_id TEXT UNIQUE`);
+  db.exec(`ALTER TABLE users ADD COLUMN apple_id TEXT`);
   console.log('Added apple_id column to users table');
 } catch {
   // Column already exists, ignore
+}
+try {
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apple_id ON users(apple_id)`);
+} catch {
+  // Index already exists, ignore
 }
 
 // Migration: transcript_records table

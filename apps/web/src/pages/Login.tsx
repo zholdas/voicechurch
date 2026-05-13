@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Login() {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading, login, loginWithApple } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const error = searchParams.get('error');
@@ -41,6 +41,10 @@ export default function Login() {
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
               {error === 'auth_failed'
                 ? 'Authentication failed. Please try again.'
+                : error === 'apple_auth_failed'
+                ? 'Apple Sign-In failed. Please try again.'
+                : error === 'apple_email_required'
+                ? 'Email is required for Apple Sign-In. Please allow email sharing.'
                 : 'An error occurred. Please try again.'}
             </div>
           )}
@@ -72,8 +76,20 @@ export default function Login() {
             </span>
           </button>
 
+          <button
+            onClick={loginWithApple}
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-black hover:bg-gray-900 transition-colors mt-3"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="white">
+              <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            </svg>
+            <span className="text-white font-medium">
+              Sign in with Apple
+            </span>
+          </button>
+
           <p className="mt-6 text-center text-sm text-gray-500">
-            Sign in to create and manage translation rooms for your church.
+            Sign in to create and manage your translation rooms.
           </p>
         </div>
 

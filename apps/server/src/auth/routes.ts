@@ -95,6 +95,94 @@ router.post('/apple/mobile', async (req, res) => {
   }
 });
 
+// Apple Sign-In for web (OAuth redirect flow)
+router.get('/apple', (req, res) => {
+  if (!config.apple.webClientId || !config.apple.teamId || !config.apple.keyId) {
+    return res.status(503).json({ error: 'Apple Sign-In not configured' });
+  }
+
+  const authUrl = appleSignin.getAuthorizationUrl({
+    clientID: config.apple.webClientId,
+    redirectUri: `${config.google.callbackUrl.replace('/google/callback', '/apple/callback')}`,
+    scope: 'name email',
+    state: 'web',
+    responseMode: 'form_post',
+  });
+
+  res.redirect(authUrl);
+});
+
+// Apple Sign-In web callback (form_post)
+router.post('/apple/callback', async (req, res) => {
+  try {
+    const { code, id_token, user: userJson } = req.body;
+
+    if (!id_token && !code) {
+      return res.redirect(`${config.frontendUrl}/login?error=apple_auth_failed`);
+    }
+
+    // Generate client secret for web
+    const clientSecret = appleSignin.getClientSecret({
+      clientID: config.apple.webClientId,
+      teamID: config.apple.teamId,
+      keyIdentifier: config.apple.keyId,
+      privateKey: config.apple.privateKey,
+    });
+
+    let tokenResponse;
+    if (code) {
+      // Exchange authorization code for tokens
+      tokenResponse = await appleSignin.getAuthorizationToken(code, {
+        clientID: config.apple.webClientId,
+        clientSecret,
+        redirectUri: `${config.google.callbackUrl.replace('/google/callback', '/apple/callback')}`,
+      });
+    }
+
+    const idToken = tokenResponse?.id_token || id_token;
+    const payload = await appleSignin.verifyIdToken(idToken, {
+      audience: config.apple.webClientId,
+      ignoreExpiration: false,
+    });
+
+    const appleUserId = payload.sub;
+    const appleEmail = payload.email;
+
+    // Apple sends user info only on first auth (in form_post body)
+    let fullName: string | undefined;
+    if (userJson) {
+      try {
+        const userData = typeof userJson === 'string' ? JSON.parse(userJson) : userJson;
+        const parts = [userData.name?.firstName, userData.name?.lastName].filter(Boolean);
+        if (parts.length > 0) fullName = parts.join(' ');
+      } catch { /* ignore parse errors */ }
+    }
+
+    if (!appleEmail) {
+      return res.redirect(`${config.frontendUrl}/login?error=apple_email_required`);
+    }
+
+    // Find or create user
+    const user = findOrCreateUser({
+      appleId: appleUserId,
+      email: appleEmail,
+      name: fullName || appleEmail.split('@')[0],
+    });
+
+    // Log in with session (same as Google web flow)
+    (req as any).login(user, (err: any) => {
+      if (err) {
+        console.error('Apple web login error:', err);
+        return res.redirect(`${config.frontendUrl}/login?error=apple_auth_failed`);
+      }
+      res.redirect(`${config.frontendUrl}/dashboard`);
+    });
+  } catch (error) {
+    console.error('Apple Sign-In web error:', error);
+    res.redirect(`${config.frontendUrl}/login?error=apple_auth_failed`);
+  }
+});
+
 // Get short-lived token for WebSocket authentication
 router.get('/ws-token', (req, res) => {
   if (!req.isAuthenticated() || !req.user) {

@@ -42,6 +42,7 @@ app.use('/webhooks/stripe', createWebhookRouter());
 
 // JSON parsing for all other routes
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Session middleware
 app.use(session({

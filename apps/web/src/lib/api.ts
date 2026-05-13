@@ -32,6 +32,7 @@ export const authApi = {
     }),
 
   getGoogleAuthUrl: () => `${API_URL}/auth/google`,
+  getAppleAuthUrl: () => `${API_URL}/auth/apple`,
 };
 
 // Rooms API

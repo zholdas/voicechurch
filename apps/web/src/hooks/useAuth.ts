@@ -7,6 +7,7 @@ interface UseAuthResult {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: () => void;
+  loginWithApple: () => void;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -32,6 +33,10 @@ export function useAuth(): UseAuthResult {
     window.location.href = authApi.getGoogleAuthUrl();
   }, []);
 
+  const loginWithApple = useCallback(() => {
+    window.location.href = authApi.getAppleAuthUrl();
+  }, []);
+
   const logout = useCallback(async () => {
     await authApi.logout();
     setUser(null);
@@ -43,6 +48,7 @@ export function useAuth(): UseAuthResult {
     isLoading,
     isAuthenticated: !!user,
     login,
+    loginWithApple,
     logout,
     refresh,
   };
