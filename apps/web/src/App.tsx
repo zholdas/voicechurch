@@ -7,6 +7,7 @@ import Listen from './pages/Listen';
 import JoinRoom from './pages/JoinRoom';
 import Pricing from './pages/Pricing';
 import Transcript from './pages/Transcript';
+import Account from './pages/Account';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import Terms from './pages/Terms';
 
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/join" element={<JoinRoom />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/account" element={<Account />} />
         <Route path="/broadcast" element={<Broadcast />} />
         <Route path="/room/:roomId" element={<Listen />} />
         <Route path="/room/:roomId/broadcast" element={<Broadcast />} />
