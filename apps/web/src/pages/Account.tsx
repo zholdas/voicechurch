@@ -121,15 +121,7 @@ export default function Account() {
           </div>
         )}
 
-        {/* Contact */}
-        <p className="text-center text-sm text-gray-400 mt-8">
-          Need a different plan?{' '}
-          <a href="mailto:support@wordbeacon.com" className="text-gray-500 hover:underline">
-            Contact us
-          </a>
-        </p>
-
-        <p className="text-center mt-4">
+        <p className="text-center mt-8">
           <a href="/dashboard" className="text-sm text-blue-600 hover:underline">
             ← Back to dashboard
           </a>
