@@ -31,6 +31,12 @@ export const authApi = {
       credentials: 'include',
     }),
 
+  deleteAccount: () =>
+    fetch(`${API_URL}/auth/me`, {
+      method: 'DELETE',
+      credentials: 'include',
+    }),
+
   getGoogleAuthUrl: () => `${API_URL}/auth/google`,
   getAppleAuthUrl: () => `${API_URL}/auth/apple`,
 };

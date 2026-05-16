@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { billingApi, type SubscriptionInfo } from '../lib/api';
+import { authApi, billingApi, type SubscriptionInfo } from '../lib/api';
 
 export default function Account() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -110,8 +110,13 @@ export default function Account() {
               </button>
               <button
                 onClick={async () => {
-                  // TODO: implement account deletion API
-                  alert('Please contact support to delete your account.');
+                  try {
+                    const res = await authApi.deleteAccount();
+                    if (!res.ok) throw new Error('Failed to delete account');
+                    navigate('/login');
+                  } catch {
+                    alert('Failed to delete account. Please try again.');
+                  }
                 }}
                 className="flex-1 py-2 px-4 bg-red-600 rounded-lg text-white font-medium hover:bg-red-700 transition-colors"
               >

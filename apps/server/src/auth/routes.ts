@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { passport } from './passport.js';
 import { config } from '../config.js';
-import { createApiToken, deleteApiToken, findOrCreateUser } from '../db/index.js';
+import { createApiToken, deleteApiToken, findOrCreateUser, deleteUser } from '../db/index.js';
 import appleSignin from 'apple-signin-auth';
 
 const router = Router();
@@ -228,6 +228,31 @@ router.post('/logout', (req, res) => {
       if (err) {
         return res.status(500).json({ error: 'Failed to destroy session' });
       }
+      res.clearCookie('connect.sid');
+      res.json({ success: true });
+    });
+  });
+});
+
+// Delete account
+router.delete('/me', (req, res) => {
+  if (!req.isAuthenticated() || !req.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  const userId = (req.user as any).id;
+  console.log(`[Auth] Deleting account for user ${userId}`);
+
+  try {
+    deleteUser(userId);
+  } catch (error) {
+    console.error('Failed to delete user:', error);
+    return res.status(500).json({ error: 'Failed to delete account' });
+  }
+
+  req.logout((err) => {
+    if (err) console.error('Logout error during account deletion:', err);
+    req.session.destroy(() => {
       res.clearCookie('connect.sid');
       res.json({ success: true });
     });

@@ -574,6 +574,28 @@ export function deleteRoom(id: string): boolean {
   return result.changes > 0;
 }
 
+export function deleteUser(userId: string): boolean {
+  // Delete all user-owned rooms (cascades to sessions, transcripts, broadcast_logs, transcript_records)
+  const rooms = db.prepare('SELECT id FROM rooms WHERE owner_id = ?').all(userId) as any[];
+  for (const room of rooms) {
+    deleteRoom(room.id);
+  }
+  // Delete orphaned broadcast_logs (rooms not owned but broadcast in)
+  const logs = db.prepare('SELECT id FROM broadcast_logs WHERE user_id = ?').all(userId) as any[];
+  for (const log of logs) {
+    db.prepare('DELETE FROM transcript_records WHERE broadcast_log_id = ?').run(log.id);
+  }
+  db.prepare('DELETE FROM broadcast_logs WHERE user_id = ?').run(userId);
+  // Delete remaining user data
+  db.prepare('DELETE FROM api_tokens WHERE user_id = ?').run(userId);
+  db.prepare('DELETE FROM subscriptions WHERE user_id = ?').run(userId);
+  db.prepare('DELETE FROM one_time_passes WHERE user_id = ?').run(userId);
+  db.prepare('DELETE FROM usage_records WHERE user_id = ?').run(userId);
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+  const result = db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  return result.changes > 0;
+}
+
 export function updateRoomQR(id: string, qrId: string, qrImageUrl: string): DbRoom | null {
   const stmt = db.prepare(`UPDATE rooms SET qr_id = ?, qr_image_url = ? WHERE id = ?`);
   stmt.run(qrId, qrImageUrl, id);
