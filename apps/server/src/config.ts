@@ -59,20 +59,25 @@ export const config = {
     voiceNameEs: process.env.GOOGLE_TTS_VOICE_ES || 'es-ES-Neural2-A',
   },
 
-  stripe: {
-    secretKey: process.env.STRIPE_SECRET_KEY || '',
-    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
-    // Price IDs for each plan (set in Stripe Dashboard)
-    prices: {
-      starterMonthly: process.env.STRIPE_PRICE_STARTER_MONTHLY || '',
-      starterYearly: process.env.STRIPE_PRICE_STARTER_YEARLY || '',
-      growingMonthly: process.env.STRIPE_PRICE_GROWING_MONTHLY || '',
-      growingYearly: process.env.STRIPE_PRICE_GROWING_YEARLY || '',
-      multiplyingMonthly: process.env.STRIPE_PRICE_MULTIPLYING_MONTHLY || '',
-      multiplyingYearly: process.env.STRIPE_PRICE_MULTIPLYING_YEARLY || '',
-      eventPass: process.env.STRIPE_PRICE_EVENT_PASS || '',
-    },
-  },
+  stripe: (() => {
+    const mode = process.env.STRIPE_MODE || 'test';
+    const isLive = mode === 'live';
+    const prefix = isLive ? 'STRIPE_LIVE' : 'STRIPE_TEST';
+    return {
+      mode,
+      secretKey: process.env[`${prefix}_SECRET_KEY`] || process.env.STRIPE_SECRET_KEY || '',
+      webhookSecret: process.env[`${prefix}_WEBHOOK_SECRET`] || process.env.STRIPE_WEBHOOK_SECRET || '',
+      prices: {
+        starterMonthly: process.env[`${prefix}_PRICE_STARTER_MONTHLY`] || process.env.STRIPE_PRICE_STARTER_MONTHLY || '',
+        starterYearly: process.env[`${prefix}_PRICE_STARTER_YEARLY`] || process.env.STRIPE_PRICE_STARTER_YEARLY || '',
+        growingMonthly: process.env[`${prefix}_PRICE_GROWING_MONTHLY`] || process.env.STRIPE_PRICE_GROWING_MONTHLY || '',
+        growingYearly: process.env[`${prefix}_PRICE_GROWING_YEARLY`] || process.env.STRIPE_PRICE_GROWING_YEARLY || '',
+        multiplyingMonthly: process.env[`${prefix}_PRICE_MULTIPLYING_MONTHLY`] || process.env.STRIPE_PRICE_MULTIPLYING_MONTHLY || '',
+        multiplyingYearly: process.env[`${prefix}_PRICE_MULTIPLYING_YEARLY`] || process.env.STRIPE_PRICE_MULTIPLYING_YEARLY || '',
+        eventPass: process.env[`${prefix}_PRICE_EVENT_PASS`] || process.env.STRIPE_PRICE_EVENT_PASS || '',
+      },
+    };
+  })(),
 
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || '',
@@ -125,7 +130,9 @@ export function validateConfig(): void {
 
   // Info about optional Stripe
   if (!config.stripe.secretKey) {
-    console.info('Info: Stripe not configured. Set STRIPE_SECRET_KEY to enable subscriptions.');
+    console.info('Info: Stripe not configured. Set STRIPE_TEST_SECRET_KEY or STRIPE_LIVE_SECRET_KEY to enable subscriptions.');
+  } else {
+    console.info(`Info: Stripe configured in ${config.stripe.mode.toUpperCase()} mode`);
   }
 }
 
