@@ -401,6 +401,22 @@ export function findOrCreateUser(data: {
   return createUser(data);
 }
 
+export function findUserOnly(data: {
+  googleId?: string;
+  appleId?: string;
+  email: string;
+}): DbUser | null {
+  if (data.googleId) {
+    const existing = getUserByGoogleId(data.googleId);
+    if (existing) return existing;
+  }
+  if (data.appleId) {
+    const existing = getUserByAppleId(data.appleId);
+    if (existing) return existing;
+  }
+  return getUserByEmail(data.email);
+}
+
 export function getUserByAppleId(appleId: string): DbUser | null {
   const stmt = db.prepare('SELECT * FROM users WHERE apple_id = ?');
   const row = stmt.get(appleId) as any;

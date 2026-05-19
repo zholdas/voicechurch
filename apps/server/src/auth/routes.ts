@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { passport } from './passport.js';
 import { config } from '../config.js';
-import { createApiToken, deleteApiToken, findOrCreateUser, deleteUser } from '../db/index.js';
+import { createApiToken, deleteApiToken, findOrCreateUser, findUserOnly, deleteUser } from '../db/index.js';
 import appleSignin from 'apple-signin-auth';
 
 const router = Router();
@@ -72,12 +72,22 @@ router.post('/apple/mobile', async (req, res) => {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    // Find or create user
-    const user = findOrCreateUser({
-      appleId: appleUserId,
-      email: appleEmail,
-      name: fullName || appleEmail.split('@')[0],
-    });
+    // Login only — don't create new accounts from mobile
+    const loginOnly = req.body.loginOnly === true;
+
+    let user;
+    if (loginOnly) {
+      user = findUserOnly({ appleId: appleUserId, email: appleEmail });
+      if (!user) {
+        return res.status(404).json({ error: 'Account not found. Please sign up at wordbeacon.com' });
+      }
+    } else {
+      user = findOrCreateUser({
+        appleId: appleUserId,
+        email: appleEmail,
+        name: fullName || appleEmail.split('@')[0],
+      });
+    }
 
     // Generate API token
     const token = createApiToken(user.id);
@@ -236,11 +246,25 @@ router.post('/logout', (req, res) => {
 
 // Delete account
 router.delete('/me', (req, res) => {
-  if (!req.isAuthenticated() || !req.user) {
+  // Support both session and Bearer token auth
+  let userId: string | undefined;
+
+  if (req.isAuthenticated() && req.user) {
+    userId = (req.user as any).id;
+  } else {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      const { getUserByApiToken } = require('../db/index.js');
+      const user = getUserByApiToken(token);
+      if (user) userId = user.id;
+    }
+  }
+
+  if (!userId) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const userId = (req.user as any).id;
   console.log(`[Auth] Deleting account for user ${userId}`);
 
   try {
